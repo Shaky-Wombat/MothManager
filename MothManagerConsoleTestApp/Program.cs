@@ -2,20 +2,484 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Threading;
-using MothManagerNeewerLEDControl;
-using MothManagerNeewerLEDControl.Logger;
+using MothManager.Core;
+using MothManager.Core.DeviceControl;
+using MothManager.Core.Logger;
+using MothManager.NeewerLEDControl;
 
 namespace MothManagerConsoleTestApp
 {
+    internal class MenuEntry
+    {
+        public readonly string label;
+        public readonly Func<Menu, Menu> selectedFunc;
 
+        public MenuEntry(string label, Func<Menu, Menu> selectedFunc)
+        {
+            this.label = label;
+            this.selectedFunc = selectedFunc;
+        }
 
+        
+    }
+
+    internal class Menu
+    {
+        private readonly string header;
+        private readonly Func<string[]>? infoCallback;
+        private readonly MenuEntry[] entries;
+        public Menu BackMenu { get; set; }
+
+        public Menu(string header, Func<string[]>? infoCallback, MenuEntry[] entries)
+        {
+            this.header = header;
+            this.infoCallback = infoCallback;
+            this.entries = entries;
+        }
+
+        public Menu? ExecuteMenu()
+        {
+            StringBuilder strBuilder = new StringBuilder();
+            var headerLength = header.Length;
+
+            // Header
+            
+            strBuilder.Append("<color:white,darkblue>");
+            AppendDivider(ref strBuilder, headerLength, "+--", "-", "--+\n");
+            strBuilder.AppendFormat("|  {0}  |\n", header);
+            AppendDivider(ref strBuilder, headerLength, "+--", "-", "--+\n");
+            strBuilder.Append("</color>");
+            
+            // Info
+
+            if (infoCallback != null)
+            {
+                
+                var infoLines = infoCallback.Invoke();
+                var maxLength = infoLines.Select(infoLine => infoLine.Length).Max();
+                
+                strBuilder.Append("<color:cyan>");
+                AppendDivider(ref strBuilder, maxLength, "+-", "-", "-+\n");
+
+                foreach (var infoLine in infoLines)
+                {
+                    AppendPaddedLine(ref strBuilder, maxLength, "| ", infoLine, " |\n");
+                }
+                
+                AppendDivider(ref strBuilder, maxLength, "+-", "-", "-+\n");
+                strBuilder.Append("</color>");
+            }
+            
+            // Entries
+
+            for (var i = 0; i < entries.Length; i++)
+            {
+                strBuilder.AppendFormat("<color:white>{0})</color> - <color:yellow>{1}</color>\n", i, entries[i].label);
+            }
+
+            if (BackMenu != null)
+            {
+                strBuilder.AppendLine("<color:white,darkgreen>b) - Back</color>");
+            }
+ 
+            strBuilder.AppendLine("<color:white,red>x) - Exit</color>");
+
+            // Selection
+            
+            strBuilder.AppendLine("<color:yellow,darkblue>+----------------------------------+");
+            strBuilder.AppendLine("|  Type selection and hit [Enter]  |");
+            strBuilder.AppendLine("+----------------------------------+</color>");
+
+            Logger.WriteLine(LogEntryType.Raw,strBuilder.ToString());
+
+            var selection = Console.ReadLine().Trim().ToLower();
+
+            if (int.TryParse(selection, out var selectionIndex))
+            {
+                if (selectionIndex < 0 || selectionIndex >= entries.Length)
+                {
+                    return this;
+                }
+
+                return entries[selectionIndex].selectedFunc.Invoke(this);
+            }
+            
+            if (selection.Equals("b") && BackMenu != null)
+            {
+                return BackMenu;
+            }
+
+            if (selection.Equals("x"))
+            {
+                return null;
+            }
+
+            return this;
+        }
+
+        public void AppendDivider(ref StringBuilder strBuilder, int length, string start, string mid, string end)
+        {
+            strBuilder.Append(start);
+
+            for (var i = 0; i < length; i++)
+            {
+                strBuilder.Append(mid);
+            }
+
+            strBuilder.Append(end);
+        }
+        
+        public void AppendPaddedLine(ref StringBuilder strBuilder, int length, string start, string line, string end)
+        {
+            strBuilder.Append(start);
+            strBuilder.Append(line);
+            
+            for (var i = line.Length; i < length; i++)
+            {
+                strBuilder.Append(' ');
+            }
+
+            strBuilder.Append(end);
+        }
+    }
+    
     internal class Program
     {
-        static volatile bool keepRunning = true;
+        private static readonly HashSet<DiscoveredDeviceInfoBase> discoveredDeviceIdSelection = new HashSet<DiscoveredDeviceInfoBase>();
+        private static readonly HashSet<DeviceBase> knownDeviceIdSelection = new HashSet<DeviceBase>();
+        
+        private static Menu MainMenu = new Menu(
+            "Main Menu",
+            MainDeviceStatus,
+            new[]
+            {
+                new MenuEntry("Discover Devices", DiscoverDevices),
+                new MenuEntry("Set Discovered Device Selection", SetDiscoveredDeviceSelection),
+                new MenuEntry("Connect to Discovered Devices", ConnectToDiscoveredDevices),
+                new MenuEntry("Set Known Device Selection", SetKnownDeviceSelection),
+                new MenuEntry("Set Power State", SetPowerState),
+                new MenuEntry("Set White", SetWhite),
+                new MenuEntry("Set Color", SetColor),
+                new MenuEntry("Set Custom Scene", SetCustomScene),
+                new MenuEntry("Disconnect Devices", DisconnectDevices)
+            }
+        );
+
+        private static string[] MainDeviceStatus()
+        {
+            var lightNameCount = new Dictionary<string, int>();
+
+            foreach (var device in knownDeviceIdSelection)
+            {
+                if (!lightNameCount.TryGetValue(device.Name, out var count))
+                {
+                    count = 0;
+                }
+
+                lightNameCount[device.Name] = count + 1;
+            }
+
+            var selectionStrings = new List<string>(lightNameCount.Count);
+
+            foreach (var kvp in lightNameCount)
+            {
+                if (kvp.Value <= 1)
+                {
+                    selectionStrings.Add(kvp.Key);
+                }
+                else
+                {
+                    selectionStrings.Add($"{kvp.Key} x {kvp.Value}");
+                }
+            }
+            
+            return new[]
+            {
+               $"{neewerManager.GetDiscoveredDeviceInfo().Count} devices discovered.",
+               $"{neewerManager.GetKnownDevices().Count} devices known.",
+               $"Known Selection : {string.Join(", ",  selectionStrings)}",
+            };
+        }
+        
+        private static Menu DiscoverDevices(Menu backMenu)
+        {
+            neewerManager.DiscoverDevices();
+            discoveredDeviceIdSelection.UnionWith(neewerManager.GetDiscoveredDeviceInfo());
+            return MainMenu;
+        }
+
+        private static Menu SetDiscoveredDeviceSelection(Menu backMenu)
+        {
+            var discoveredDevices = neewerManager.GetDiscoveredDeviceInfo();
+            var entries = new MenuEntry[discoveredDevices.Count + 2];
+
+            for (int i = 0; i < discoveredDevices.Count; i++)
+            {
+                var deviceInfo = discoveredDevices[i];
+                bool isSelected = discoveredDeviceIdSelection.Contains(deviceInfo);
+                entries[i] = new MenuEntry(
+                    $"[{(isSelected ? 'X' : ' ')}] <color:{(isSelected ? "Green" : "Red")}> - ({deviceInfo.Id})</color>{deviceInfo.DeviceName}",
+                    (backMenu) => SetDiscoveredDeviceSelected(deviceInfo, !isSelected, backMenu));
+            }
+
+            entries[^2] = new MenuEntry("Select All", (menu) => SelectAllDiscoveredDevices(true, backMenu));
+            entries[^1] = new MenuEntry("Select None", (menu) => SelectAllDiscoveredDevices(false, backMenu));
+
+            return new Menu("Discovered Device Selection", null, entries) { BackMenu = backMenu};
+        }
+
+        private static Menu SelectAllDiscoveredDevices(bool selected, Menu backMenu)
+        {
+            if (selected)
+            {
+                discoveredDeviceIdSelection.UnionWith(neewerManager.GetDiscoveredDeviceInfo());
+            }
+            else
+            {
+                discoveredDeviceIdSelection.Clear();
+            }
+
+            return SetDiscoveredDeviceSelection(backMenu);
+        }
+
+        private static Menu SetDiscoveredDeviceSelected(DiscoveredDeviceInfoBase discoveredDevice, bool selected, Menu backMenu)
+        {
+            if (selected)
+            {
+                discoveredDeviceIdSelection.Add(discoveredDevice);
+            }
+            else
+            {
+                discoveredDeviceIdSelection.Remove(discoveredDevice);
+            }
+            
+            return SetDiscoveredDeviceSelection(backMenu);
+        }
+
+        
+        private static Menu ConnectToDiscoveredDevices(Menu backMenu)
+        {
+            foreach (var deviceInfo in discoveredDeviceIdSelection)
+            {
+                neewerManager.ConnectDevice(deviceInfo);    
+            }
+
+            knownDeviceIdSelection.UnionWith(neewerManager.GetKnownDevices());
+            var connectingDevices = new HashSet<DeviceBase>(knownDeviceIdSelection);
+            
+            while (connectingDevices.Count > 0)
+            {
+                var device = connectingDevices.First() as NeewerLedDevice;
+
+                if (device == null)
+                {
+                    connectingDevices.Remove(connectingDevices.First());
+                }
+                else
+                {
+                    while (device.status != NeewerLedDevice.DeviceStatus.Ready)
+                    {
+
+                    }
+
+                    connectingDevices.Remove(device);
+                    Logger.WriteLine("Connected and ready", $"{device.Name} ({device.Id})");
+                }
+            }
+
+            return MainMenu;
+        }
+
+        private static Menu SetKnownDeviceSelection(Menu backMenu)
+        {
+            var knownDevices = neewerManager.GetKnownDevices();
+            var entries = new MenuEntry[knownDevices.Count + 2];
+
+            for (int i = 0; i < knownDevices.Count; i++)
+            {
+                var deviceInfo = knownDevices[i];
+                bool isSelected = knownDeviceIdSelection.Contains(deviceInfo);
+                entries[i] = new MenuEntry(
+                    $"[{(isSelected ? 'X' : ' ')}] <color:{(isSelected ? "Green" : "Red")}> - ({deviceInfo.Id})</color>{deviceInfo.Name}",
+                    (backMenu) => SetKnownDeviceSelected(deviceInfo, !isSelected, backMenu));
+            }
+
+            entries[^2] = new MenuEntry("Select All", (menu) => SelectAllKnownDevices(true, backMenu));
+            entries[^1] = new MenuEntry("Select None", (menu) => SelectAllKnownDevices(false, backMenu));
+
+            return new Menu("Known Device Selection", null, entries) { BackMenu = backMenu};
+        }
+
+        private static Menu SelectAllKnownDevices(bool selected, Menu backMenu)
+        {
+            if (selected)
+            {
+                knownDeviceIdSelection.UnionWith(neewerManager.GetKnownDevices());
+            }
+            else
+            {
+                knownDeviceIdSelection.Clear();
+            }
+
+            return SetKnownDeviceSelection(backMenu);
+        }
+
+        private static Menu SetKnownDeviceSelected(DeviceBase knownDevice, bool selected, Menu backMenu)
+        {
+            if (selected)
+            {
+                knownDeviceIdSelection.Add(knownDevice);
+            }
+            else
+            {
+                knownDeviceIdSelection.Remove(knownDevice);
+            }
+            
+            return SetKnownDeviceSelection(backMenu);
+        }
+
+        
+        private static Menu SetPowerState(Menu backMenu)
+        {
+            var selectionString = "-1";
+            var selectionInt = -1;
+             
+            while (!int.TryParse(selectionString, out selectionInt) || selectionInt is < 0 or > 2)
+            {
+                Logger.WriteLine(LogEntryType.Raw, "<color:white>Select Power State, 0 = off, 1 == on 2 = toggle, b = back</color>");
+                
+                selectionString = Console.ReadLine().Trim().ToLower();
+                
+                if (selectionString == "b")
+                {
+                    return backMenu;
+                }
+            }
+
+            switch (selectionInt)
+            {
+                case 0:
+                    foreach (var device in knownDeviceIdSelection)
+                    {
+                        device.Power = false;
+                    }
+
+                    break;
+
+                case 1:
+                    foreach (var device in knownDeviceIdSelection)
+                    {
+                        device.Power = true;
+                    }
+
+                    break;
+
+                case 2:
+                    foreach (var device in knownDeviceIdSelection)
+                    {
+                        device.Power = !device.Power;
+                    }
+
+                    break;
+            }
+
+
+            return backMenu;
+        }
+
+        
+        private static Menu SetWhite(Menu backMenu)
+        {
+            var inputString = "-1";
+            var temperatureInt = -1;
+             
+            while (!int.TryParse(inputString, out temperatureInt) || temperatureInt is < 3200 or > 5500)
+            {
+                Logger.WriteLine(LogEntryType.Raw, "Enter temperature in kelvin usually between 3200 and 5500");
+                
+                inputString = Console.ReadLine().Trim().ToLower();
+            }
+            
+            inputString = "-1";
+            var brightnessInt = -1;
+            
+            while (!int.TryParse(inputString, out brightnessInt) || brightnessInt is < 0 or > 100)
+            {
+                Logger.WriteLine(LogEntryType.Raw, "Enter brightness between 0 and 100");
+                
+                inputString = Console.ReadLine().Trim().ToLower();
+            }
+
+            foreach (var device in knownDeviceIdSelection)
+            {
+                device.SetWhite(temperatureInt, brightnessInt / 100f);
+            }
+
+            return backMenu;
+        }
+
+        
+        private static Menu SetColor(Menu backMenu)
+        {
+            var inputString = "-1";
+            var hueInt = -1;
+             
+            while (!int.TryParse(inputString, out hueInt) || hueInt is < 0 or > 360)
+            {
+                Logger.WriteLine(LogEntryType.Raw, "Enter hue between 0 and 360");
+                
+                inputString = Console.ReadLine().Trim().ToLower();
+            }
+            
+            inputString = "-1";
+            var SaturationInt = -1;
+            
+            while (!int.TryParse(inputString, out SaturationInt) || SaturationInt is < 0 or > 100)
+            {
+                Logger.WriteLine(LogEntryType.Raw, "Enter saturation between 0 and 100");
+                
+                inputString = Console.ReadLine().Trim().ToLower();
+            }
+            
+            inputString = "-1";
+            var BrightnessInt = -1;
+            
+            while (!int.TryParse(inputString, out BrightnessInt) || BrightnessInt is < 0 or > 100)
+            {
+                Logger.WriteLine(LogEntryType.Raw, "Enter brightness between 0 and 100");
+                
+                inputString = Console.ReadLine().Trim().ToLower();
+            }
+
+            foreach (var device in knownDeviceIdSelection)
+            {
+                device.SetColor(hueInt / 360f, SaturationInt / 100f, BrightnessInt / 100f);
+            }
+
+            return backMenu;
+        }
+
+
+        private static Menu SetCustomScene(Menu backMenu)
+        {
+            throw new NotImplementedException();
+        }
+
+
+        private static Menu DisconnectDevices(Menu backMenu)
+        {
+            throw new NotImplementedException();
+        }
+
+
+
+        static volatile bool publikeepRunning = true;
 
         static Thread discoverBleThread;
-        static Dictionary<string, string> foundDevices = null;
+        private static NeewerLEDControlManager neewerManager;
 
         static void Main(string[] args)
         {
@@ -24,62 +488,50 @@ namespace MothManagerConsoleTestApp
             //var sctx = SynchronizationContext.Current;
             
             //Run(args).Wait();
-            discoverBleThread = new Thread(DiscoverBleThread);
-            discoverBleThread.Start();
-
-            while (discoverBleThread.IsAlive)
-            {
-            }
-
-            DeviceWatcher.StartMonitoring();
+            // discoverBleThread = new Thread(DiscoverBleThread);
+            // discoverBleThread.Start();
+            //
+            // while (discoverBleThread.IsAlive)
+            // {
+            // }
             
-            Console.ReadLine();
-            
-            DeviceWatcher.StopMonitoring();
-            
-            // bleDevices[id].sendQueue.Enqueue(NeewerLightUtil.GetCommandBytes(NeewerLightUtil.CommandType.PowerRequest));
-            // bleDevices[id].receiveCharacteristic.StartNotificationsAsync().Wait();
-            // characteristic = bleDevices[id].receiveCharacteristic;
-            var bleDevices = BleDeviceManager.bleDevices;
-            // Console.WriteLine($"\t\tReceive Characteristic : {characteristic.Uuid} - {characteristic.UserDescription}, {characteristic.Properties} = {BitConverter.ToString(characteristic.Value)}");
-            //bleDevices[id].sendQueue.Enqueue(NeewerLightUtil.GetCommandBytes(NeewerLightUtil.CommandType.SceneSend, 50, (byte)NeewerLightUtil.SceneId.Fireworks));
-            foreach (var id in foundDevices.Keys)
+            neewerManager = new NeewerLEDControlManager();
+            neewerManager.Initialize();
+
+            var currentMenu = MainMenu;
+
+            while (currentMenu != null)
             {
-                bleDevices[id].sendCharacteristic
-                    .WriteValueWithResponseAsync(NeewerLightUtil.GetCommandBytes(NeewerLightUtil.CommandType.PowerSend,
-                        1));
-                bleDevices[id].sendCharacteristic.WriteValueWithResponseAsync(NeewerLightUtil.GetCommandBytes(NeewerLightUtil.CommandType.HSVSend, NeewerLightUtil.HsvToBytes(new ColorStruct.HSV(new Random().Next(360) / 360f, 1f,.25f))));
-
-                //bleDevices[id].sendCharacteristic.WriteValueWithResponseAsync(NeewerLightUtil.GetCommandBytes(NeewerLightUtil.CommandType.CCTSend, 44, 50));
-                var characteristic = bleDevices[id].sendCharacteristic;
+                currentMenu = currentMenu.ExecuteMenu();
             }
-
-            Console.ReadLine();
-
-            BleDeviceManager.DisconnectAll();
-        }
-
-        private static void DiscoverBleThread(object inName)
-        {
-            foundDevices = DeviceSearchBLE.DiscoverDevicesAsync().Result;
-
-            if (foundDevices != null)
+            
+            /*
+            foreach (var discoveredDevice in discovered)
             {
-                var bleScanned = "Found: " + foundDevices.Count + "\n";
-                foreach (var kvp in foundDevices)
-                {
-                    var specs = NeewerLightUtil.GetDeviceSpec(kvp.Value);
-
-                    bleScanned +=
-                        $"{kvp.Value} : {kvp.Key} - {specs.minTemperature}K-{specs.maxTemperature}K - White:{specs.cctOnly}\n";
-                    BleDeviceManager.connectionList.Add(kvp.Key);
-                }
-
-                Logger.WriteLine($" * <color:blue>{bleScanned}</color>");
+                neewerManager.ConnectDevice(discoveredDevice.Value);
             }
+            */
 
-            //Console.WriteLine(BleDeviceManager.MonitorLog);
-            //Console.WriteLine("Done.");
+            // DeviceWatcher.StartMonitoring();
+
+            neewerManager.Cleanup();
+
+            // DeviceWatcher.StopMonitoring();
+            //
+            // var bleDevices = BleDeviceManager.bleDevices;
+            // foreach (var id in foundDevices.Keys)
+            // {
+            //     bleDevices[id].sendCharacteristic
+            //         .WriteValueWithResponseAsync(NeewerLightUtil.GetCommandBytes(NeewerLightUtil.CommandType.PowerSend,
+            //             1));
+            //     bleDevices[id].sendCharacteristic.WriteValueWithResponseAsync(NeewerLightUtil.GetCommandBytes(NeewerLightUtil.CommandType.HSVSend, NeewerLightUtil.HsvToBytes(new ColorStruct.HSV(new Random().Next(360) / 360f, 1f,.25f))));
+            //
+            //     var characteristic = bleDevices[id].sendCharacteristic;
+            // }
+            //
+            // Console.ReadLine();
+            //
+            // BleDeviceManager.DisconnectAll();
         }
     }
 }

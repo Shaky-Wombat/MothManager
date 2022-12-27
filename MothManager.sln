@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MothManagerConsoleTestApp",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MothManagerNeewerLEDControl", "MothManagerNeewerLEDControl\MothManagerNeewerLEDControl.csproj", "{DE7F8586-CF0E-41BD-9FE6-1A463EC60CDA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MothManagerCore", "MothManagerCore\MothManagerCore.csproj", "{745E7E1B-AF26-4029-B8BE-9F8877EC741D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{DE7F8586-CF0E-41BD-9FE6-1A463EC60CDA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DE7F8586-CF0E-41BD-9FE6-1A463EC60CDA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DE7F8586-CF0E-41BD-9FE6-1A463EC60CDA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{745E7E1B-AF26-4029-B8BE-9F8877EC741D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{745E7E1B-AF26-4029-B8BE-9F8877EC741D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{745E7E1B-AF26-4029-B8BE-9F8877EC741D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{745E7E1B-AF26-4029-B8BE-9F8877EC741D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

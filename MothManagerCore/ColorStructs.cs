@@ -1,7 +1,6 @@
 ﻿using System;
-using Windows.Storage.Search;
 
-namespace MothManagerNeewerLEDControl
+namespace MothManager.Core
 {
     public static class ColorStruct
     {

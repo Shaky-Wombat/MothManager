@@ -1,10 +1,11 @@
-﻿namespace MothManagerNeewerLEDControl.Logger
+﻿namespace MothManager.Core.Logger
 {
     public enum LogEntryType
     {
         Info,
         Warning,
         Error,
-        SimpleError
+        SimpleError,
+        Raw,
     }
 }

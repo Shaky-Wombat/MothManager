@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MothManagerNeewerLEDControl.Logger
+namespace MothManager.Core.Logger
 {
     public interface ILogger : IDisposable
     {
@@ -27,7 +27,6 @@ namespace MothManagerNeewerLEDControl.Logger
             ActiveLogger.Initialize();
         }
         
-
         public static void WriteLine(string msg)
         {
             ActiveLogger?.WriteLine(msg);    

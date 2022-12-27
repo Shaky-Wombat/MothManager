@@ -1,6 +1,6 @@
 ﻿using System.Threading;
 
-namespace MothManagerNeewerLEDControl
+namespace MothManager.NeewerLEDControl
 {
     public class DeviceWatcher
     {
@@ -47,7 +47,7 @@ namespace MothManagerNeewerLEDControl
         public static void StartMonitoring()
         {
             _isMonitoring = true;
-            BleDeviceManager.StartMonitoring();
+            // BleDeviceManager.StartMonitoring();
         }
 
         public static void StopMonitoring()

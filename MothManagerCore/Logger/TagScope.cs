@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MothManagerNeewerLEDControl.Logger
+namespace MothManager.Core.Logger
 {
     public class TagScope : IDisposable
     {

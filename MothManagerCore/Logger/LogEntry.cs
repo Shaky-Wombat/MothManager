@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Linq;
-using System.Runtime.CompilerServices;
 
-namespace MothManagerNeewerLEDControl.Logger
+namespace MothManager.Core.Logger
 {
     public class LogEntry
     {

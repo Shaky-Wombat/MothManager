@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace MothManagerNeewerLEDControl.Logger
+namespace MothManager.Core.Logger
 {
     public class ConsoleLogger : ILogger
     {
@@ -132,6 +130,10 @@ namespace MothManagerNeewerLEDControl.Logger
                 {
                     LogEntryType.SimpleError,
                     new LogEntryFormatter("[{0}] **ERROR** {1}{2}", ConsoleColor.Black, ConsoleColor.Red)
+                },
+                {
+                    LogEntryType.Raw,
+                    new LogEntryFormatter("{2}")
                 }
             };
 
@@ -158,6 +160,10 @@ namespace MothManagerNeewerLEDControl.Logger
 
         private async void Process()
         {
+            var tempFormatter = new LogEntryFormatter();
+            tempFormatter.BackgroundColor = ConsoleColor.DarkBlue;
+            tempFormatter.ForegroundColor = ConsoleColor.Cyan;
+            
             while (Processing || pendingLogEntries.Count > 0)
             {
                 var entry = pendingLogEntries.Take();
