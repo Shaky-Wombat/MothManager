@@ -198,22 +198,22 @@ namespace MothManagerConsoleTestApp
             
             return new[]
             {
-               $"{neewerManager.GetDiscoveredDeviceInfo().Count} devices discovered.",
-               $"{neewerManager.GetKnownDevices().Count} devices known.",
+               $"{_neewerManager.GetDiscoveredDeviceInfo().Count} devices discovered.",
+               $"{_neewerManager.GetKnownDevices().Count} devices known.",
                $"Known Selection : {string.Join(", ",  selectionStrings)}",
             };
         }
         
         private static Menu DiscoverDevices(Menu backMenu)
         {
-            neewerManager.DiscoverDevices();
-            discoveredDeviceIdSelection.UnionWith(neewerManager.GetDiscoveredDeviceInfo());
+            _neewerManager.DiscoverDevices();
+            discoveredDeviceIdSelection.UnionWith(_neewerManager.GetDiscoveredDeviceInfo());
             return MainMenu;
         }
 
         private static Menu SetDiscoveredDeviceSelection(Menu backMenu)
         {
-            var discoveredDevices = neewerManager.GetDiscoveredDeviceInfo();
+            var discoveredDevices = _neewerManager.GetDiscoveredDeviceInfo();
             var entries = new MenuEntry[discoveredDevices.Count + 2];
 
             for (int i = 0; i < discoveredDevices.Count; i++)
@@ -235,7 +235,7 @@ namespace MothManagerConsoleTestApp
         {
             if (selected)
             {
-                discoveredDeviceIdSelection.UnionWith(neewerManager.GetDiscoveredDeviceInfo());
+                discoveredDeviceIdSelection.UnionWith(_neewerManager.GetDiscoveredDeviceInfo());
             }
             else
             {
@@ -264,10 +264,10 @@ namespace MothManagerConsoleTestApp
         {
             foreach (var deviceInfo in discoveredDeviceIdSelection)
             {
-                neewerManager.ConnectDevice(deviceInfo);    
+                _neewerManager.ConnectDevice(deviceInfo, new List<DeviceSettingsBase>());    
             }
 
-            knownDeviceIdSelection.UnionWith(neewerManager.GetKnownDevices());
+            knownDeviceIdSelection.UnionWith(_neewerManager.GetKnownDevices());
             var connectingDevices = new HashSet<DeviceBase>(knownDeviceIdSelection);
             
             while (connectingDevices.Count > 0)
@@ -280,7 +280,7 @@ namespace MothManagerConsoleTestApp
                 }
                 else
                 {
-                    while (device.status != NeewerLedDevice.DeviceStatus.Ready)
+                    while (device.Status != NeewerLedDevice.DeviceStatus.Ready)
                     {
 
                     }
@@ -295,7 +295,7 @@ namespace MothManagerConsoleTestApp
 
         private static Menu SetKnownDeviceSelection(Menu backMenu)
         {
-            var knownDevices = neewerManager.GetKnownDevices();
+            var knownDevices = _neewerManager.GetKnownDevices();
             var entries = new MenuEntry[knownDevices.Count + 2];
 
             for (int i = 0; i < knownDevices.Count; i++)
@@ -317,7 +317,7 @@ namespace MothManagerConsoleTestApp
         {
             if (selected)
             {
-                knownDeviceIdSelection.UnionWith(neewerManager.GetKnownDevices());
+                knownDeviceIdSelection.UnionWith(_neewerManager.GetKnownDevices());
             }
             else
             {
@@ -479,7 +479,7 @@ namespace MothManagerConsoleTestApp
         static volatile bool publikeepRunning = true;
 
         static Thread discoverBleThread;
-        private static NeewerLEDControlManager neewerManager;
+        private static NeewerLedDeviceManager _neewerManager;
 
         static void Main(string[] args)
         {
@@ -495,8 +495,8 @@ namespace MothManagerConsoleTestApp
             // {
             // }
             
-            neewerManager = new NeewerLEDControlManager();
-            neewerManager.Initialize();
+            _neewerManager = new NeewerLedDeviceManager();
+            _neewerManager.Initialize();
 
             var currentMenu = MainMenu;
 
@@ -514,7 +514,7 @@ namespace MothManagerConsoleTestApp
 
             // DeviceWatcher.StartMonitoring();
 
-            neewerManager.Cleanup();
+            _neewerManager.Cleanup();
 
             // DeviceWatcher.StopMonitoring();
             //

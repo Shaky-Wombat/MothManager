@@ -84,13 +84,14 @@ namespace MothManager.NeewerLEDControl
         }
     }
     
-    public class NeewerLEDControlManager : ControlManagerBase
+    public class NeewerLedDeviceManager : DeviceManagerManagerBase
     {
         private Thread discoverBleThread;
         private Dictionary<string, DiscoveredDeviceInfoBase> discoveredDevices = null;
 
-        private Dictionary<string, NeewerLedDevice> devices =
-            new Dictionary<string, NeewerLedDevice>();
+        private readonly Dictionary<string, NeewerLedDevice> _devices = new Dictionary<string, NeewerLedDevice>();
+
+        public event Action<NeewerLedDevice> OnDeviceAdded;
 
         public IReadOnlyList<DiscoveredDeviceInfoBase> GetDiscoveredDeviceInfo()
         {
@@ -99,13 +100,22 @@ namespace MothManager.NeewerLEDControl
         
         public IReadOnlyList<NeewerLedDevice> GetKnownDevices()
         {
-            return devices?.Values.ToList() ?? new List<NeewerLedDevice>();
+            return _devices.Values.ToList();
         }
 
         protected override void InitializeManager()
         
         {
             
+        }
+
+        public override void DiscoverDevices(Action<Dictionary<string, DiscoveredDeviceInfoBase>> completeCallback)
+        {
+            // ThreadStart starter = DiscoverBleThread;
+            //
+            // starter += () => completeCallback.Invoke(discoveredDevices);
+            // discoverBleThread = new Thread(starter) { IsBackground = true };
+            // discoverBleThread.Start();
         }
 
         public override Dictionary<string, DiscoveredDeviceInfoBase> DiscoverDevices()
@@ -120,21 +130,50 @@ namespace MothManager.NeewerLEDControl
             return discoveredDevices;
         }
 
-        public override void ConnectDevice(DiscoveredDeviceInfoBase deviceInfo)
+        public override void ConnectDevice(DiscoveredDeviceInfoBase deviceInfo, List<DeviceSettingsBase> knownDeviceSettings, int attemptsAllowed = 4)
         {
+            Logger.WriteLine($"Neewer Manager ConnectDevice : preCount = {_devices.Count}");
+            
             if (deviceInfo is DiscoveredNeewerLEDDeviceInfo neewerLedDeviceInfo)
             {
-                if (!devices.TryGetValue(deviceInfo.Id, out var device))
+                if (!_devices.TryGetValue(deviceInfo.Id, out var device))
                 {
-                    device = new NeewerLedDevice(new NeewerLedDeviceSettingsBase(neewerLedDeviceInfo));
-                    devices.Add(device.Id, device);
+                    NeewerLedDeviceSettings? settings = null; 
+                    
+                    foreach (var knownDeviceSetting in knownDeviceSettings)
+                    {
+                        if (knownDeviceSetting is not NeewerLedDeviceSettings knownNeewerDeviceSetting)
+                        {
+                            continue;
+                        }
+                        if (knownNeewerDeviceSetting.Id == deviceInfo.Id)
+                        {
+                            settings = knownNeewerDeviceSetting;
+                        }
+                    }
+                    
+                    device = new NeewerLedDevice(settings ?? new NeewerLedDeviceSettings(neewerLedDeviceInfo));
+
+                    AddDevice(device);
                 }
                 
-                device.Connect();
+                device.Connect(attemptsAllowed);
             }
+            
+            Logger.WriteLine($"Neewer Manager ConnectDevice : postCount = {_devices.Count}");
         }
-        
-        private void DiscoverBleThread(object? cancellationToken)
+
+        private void AddDevice(NeewerLedDevice device)
+        {
+            Logger.WriteLine($"Neewer Manager AddDevice : preCount = {_devices.Count}");
+            
+            _devices.Add(device.Id, device);
+            OnDeviceAdded.Invoke(device);
+            
+            Logger.WriteLine($"Neewer Manager AddDevice : postCount = {_devices.Count}");
+        }
+
+        private void DiscoverBleThread()
         {
             discoveredDevices = DeviceSearchBLE.DiscoverDevicesAsync().Result;
 
@@ -152,15 +191,51 @@ namespace MothManager.NeewerLEDControl
                 Logger.WriteLine($" * <color:blue>{logText}</color>");
             }
         }
+        
+        public void UpdateKnownDeviceSettings(List<DeviceSettingsBase> deviceSettings, bool autoConnectOnLoad)
+        {
+            Logger.WriteLine($"Neewer Manager UpdateKnownDeviceSettings : preCount = {_devices.Count} -> in count: {deviceSettings.Count()}");
+            
+            foreach (var deviceSetting in deviceSettings)
+            {
+                if (_devices.TryGetValue(deviceSetting.Id, out var device))
+                {
+                    device.LoadStateFromSettings();
+                }
+                else
+                {
+                   AddDevice(new NeewerLedDevice(deviceSetting as NeewerLedDeviceSettings ?? new NeewerLedDeviceSettings()));    
+                }
+            }
+            
+            Logger.WriteLine($"Neewer Manager UpdateKnownDeviceSettings : postCount {_devices.Count}");
+        }
+        
+        public List<DeviceSettingsBase> GetKnownDeviceSettings()
+        {
+            var retVal = new List<DeviceSettingsBase>();
+
+            foreach (var device in _devices)
+            {
+                device.Value.SaveStateToSettings();
+                retVal.Add(device.Value.Settings);
+            }
+            
+            Logger.WriteLine($"Neewer Manager GetKnownDeviceSettings : {retVal.Count}");
+
+            return retVal;
+        }
 
         public void Cleanup()
         {
-            foreach (var device in devices)
+            Logger.WriteLine("Neewer Manager Cleanup!");
+            
+            foreach (var device in _devices)
             {
                 device.Value.Disconnect();
             }
             
-            devices.Clear();
+            _devices.Clear();
         }
     }
 }

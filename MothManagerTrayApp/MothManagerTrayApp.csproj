@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net6.0-windows10.0.19041.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <UseWindowsForms>true</UseWindowsForms>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+      <PackageReference Include="Unofficial.Cyotek.Windows.Forms.NET" Version="1.8.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\MothManagerCore\MothManagerCore.csproj" />
+      <ProjectReference Include="..\MothManagerNeewerLEDControl\MothManagerNeewerLEDControl.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Update="Controls\NeewerLEDPanelSettings.cs">
+        <SubType>UserControl</SubType>
+      </Compile>
+    </ItemGroup>
+
+</Project>

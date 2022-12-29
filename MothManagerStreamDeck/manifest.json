@@ -1,0 +1,38 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/icon",
+      "Name": "TODO_ENTER_NAME_OF_ACTION",
+      "States": [
+        {
+          "Image": "Images/pluginAction",
+          "TitleAlignment": "middle",
+          "FontSize": "12"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "Tooltip": "TODO_ENTER_TOOLTIP",
+      "UUID": "MothManagerStreamDeck.pluginaction",
+      "PropertyInspectorPath": "PropertyInspector/PluginActionPI.html"
+    }
+  ],
+  "Author": "Shaky_Wombat",
+  "Name": "MothManagerStreamDeck",
+  "Description": "Stream Deck integration for MothManager software",
+  "Icon": "Images/pluginIcon",
+  "URL": "www.shakywombat.com",
+  "Version": "1.0",
+  "CodePath": "MothManagerStreamDeck",
+  "Category": "Lighting",
+  "CategoryIcon": "Images/categoryIcon",
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "4.9"
+  }
+}

@@ -27,6 +27,40 @@ namespace MothManager.NeewerLEDControl
             var discoveredBLE = new Dictionary<string, DiscoveredDeviceInfoBase>();
             scanFilter.NamePrefix = "NEEWER";
             rdo.Filters.Add(scanFilter);
+
+            discoveredDevices = await Bluetooth.ScanForDevicesAsync();
+
+            foreach (BluetoothDevice bd in discoveredDevices)
+            {
+                if (bd.Name.Contains("NEEWER"))
+                {
+                    Logger.WriteLine($"<color:Magenta>Device ID = {bd.Id}, {bd.Name}</color>");
+                    
+                    if (!discoveredBLE.ContainsKey(bd.Id))
+                    {
+                        discoveredBLE[bd.Id] = new DiscoveredNeewerLEDDeviceInfo(bd.Id, bd.Name);
+                    }
+                }
+            }
+
+            return discoveredBLE;
+        }
+    }
+    
+    public class IncrementalDeviceSearchBLE
+    {
+        private BluetoothLEScanFilter scanFilter = new BluetoothLEScanFilter();
+        private RequestDeviceOptions rdo = new RequestDeviceOptions();
+        //private static Dictionary<string, string> discoveredBLE = new Dictionary<string, string>();
+        private IReadOnlyCollection<BluetoothDevice> discoveredDevices = null;
+
+        public async Task<Dictionary<string, DiscoveredDeviceInfoBase>> DiscoverDevicesAsync()
+        {
+            scanFilter = new BluetoothLEScanFilter();
+            rdo = new RequestDeviceOptions();
+            var discoveredBLE = new Dictionary<string, DiscoveredDeviceInfoBase>();
+            scanFilter.NamePrefix = "NEEWER";
+            rdo.Filters.Add(scanFilter);
             discoveredDevices = await Bluetooth.ScanForDevicesAsync();
 
             foreach (BluetoothDevice bd in discoveredDevices)

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.UI;
 using InTheHand.Bluetooth;
 using MothManager.Core;
 using MothManager.Core.DeviceControl;
@@ -28,16 +29,39 @@ namespace MothManager.NeewerLEDControl
             new ConcurrentDictionary<BluetoothUuid, BleCacheCharacteristic>();
     }*/
 
-    public class NeewerLedDeviceSettingsBase : DeviceSettingsBase
+    [Serializable]
+    public class NeewerLedDeviceSettings : DeviceSettingsBase
     {
-        public string HardwareName { get; }
-        public DeviceCapabilities Capabilities { get; }
-        public new NeewerLEDDeviceState State { get; set; }
+        public DeviceCapabilities Capabilities { get; set; }
 
-        public NeewerLedDeviceSettingsBase(DiscoveredNeewerLEDDeviceInfo info) : base(info, new NeewerLEDDeviceState())
+        public NeewerLedDeviceSettings() : base(new NeewerLEDDeviceState())
         {
-            HardwareName = info.DeviceName;
+        }
+
+        public NeewerLedDeviceSettings(DiscoveredNeewerLEDDeviceInfo info) : base(info, new NeewerLEDDeviceState())
+        {
             Capabilities = info.Capabilities;
+            State.SetWhite((Capabilities.minTemperature + Capabilities.maxTemperature) / 2, 0.5f);
+        }
+
+        public override void CopyFrom(DeviceSettingsBase settings, bool overwriteId = false)
+        {
+            base.CopyFrom(settings, overwriteId);
+
+            if (settings is NeewerLedDeviceSettings neewerSettings)
+            {
+                Capabilities = neewerSettings.Capabilities;
+
+                if (settings.State is NeewerLEDDeviceState)
+                {
+                    State = settings.State;
+                }
+                else
+                {
+                    State.CopyFrom(settings.State);
+                }
+                
+            }
         }
     }
 
@@ -101,6 +125,7 @@ namespace MothManager.NeewerLEDControl
             QueryingService,
             QueryingReceive,
             QueryingSend,
+            GattInitialized,
             Ready,
             
             MissingService,
@@ -111,42 +136,51 @@ namespace MothManager.NeewerLEDControl
         }
         
         public BluetoothDevice bluetoothDevice;
-        public GattService? lightControlService;
-        public GattCharacteristic? receiveCharacteristic;
-        public GattCharacteristic? sendCharacteristic;
+        private GattService? lightControlService;
+        private GattCharacteristic? receiveCharacteristic;
+        private GattCharacteristic? sendCharacteristic;
 
-        public Thread monitorThread;
-        public bool stayActive = true;
+        private Thread? monitorThread = null;
+        private bool stayActive = true;
 
-        public DeviceStatus status = DeviceStatus.Uninitialized;
-        
-        public ConcurrentQueue<byte[]> sendQueue = new ConcurrentQueue<byte[]>();
-        private bool _gattCharacteristicsLogged;
-
-        public override bool Connected => status == DeviceStatus.Ready;
-
-        public NeewerLedDevice(NeewerLedDeviceSettingsBase settings) : base(settings)
+        public DeviceStatus Status
         {
-            
+            get => _status;
+            private set => SetField(ref _status, value);
         }
 
-        public override void Connect()
+        public ConcurrentQueue<byte[]> sendQueue = new ConcurrentQueue<byte[]>();
+        private bool _gattCharacteristicsLogged;
+        private DeviceStatus _status = DeviceStatus.Uninitialized;
+
+        public override bool Connected => Status == DeviceStatus.Ready && bluetoothDevice.Gatt.IsConnected;
+
+        public NeewerLedDevice(NeewerLedDeviceSettings settings) : base(settings)
         {
+        }
+
+        public override void Connect(int attemptsAllowed)
+        {
+            Logger.WriteLine($"<color:cyan>Connect [{Id}] {Name}</color>");
+
             monitorThread = new Thread(MonitorDevice);
             monitorThread.Start();
         }
         
-        private void MonitorDevice()
+        private async void MonitorDevice()
         {
+            Logger.WriteLine($"<color:yellow>MonitorDevice Start [{Id}] {Name}</color>");
+            
+            stayActive = true;
             while (stayActive)
             {
-                if (status != DeviceStatus.Ready)
+                if (Status != DeviceStatus.Ready)
                 {
                     try
                     {
-                        if (status == DeviceStatus.Uninitialized || status == DeviceStatus.TryReconnect)
+                        if (Status == DeviceStatus.Uninitialized || Status == DeviceStatus.TryReconnect)
                         {
-                            QueryGATT();
+                            QueryGATT(true);
                         }
                     }
                     catch (Exception ex)
@@ -158,14 +192,14 @@ namespace MothManager.NeewerLEDControl
                 {
                     if (bluetoothDevice != null
                         && !bluetoothDevice.Gatt.IsConnected
-                        && status == DeviceStatus.Ready)
+                        && Status == DeviceStatus.Ready)
                     {
                         Logger.WriteLine(LogEntryType.Warning,  Id + " DC");
-                        status = DeviceStatus.TryReconnect;
+                        Status = DeviceStatus.TryReconnect;
                     }
 
 
-                    while (sendQueue.Count > 0 && status == DeviceStatus.Ready && sendCharacteristic != null)
+                    while (sendQueue.Count > 0 && Status == DeviceStatus.Ready && sendCharacteristic != null)
                     {
                         sendQueue.TryDequeue(out var message);
                         
@@ -176,23 +210,14 @@ namespace MothManager.NeewerLEDControl
                         sendCharacteristic.WriteValueWithResponseAsync(message).Wait();
                     }
                 }
-                
-                if (status == DeviceStatus.Ready && !_gattCharacteristicsLogged)
-                {
-                    Logger.WriteLine("<color:green>Querying GATT Finished :</color>\n"
-                                      + $"\t<color:white,blue>Control Service : {lightControlService.Uuid}</color>\n"
-                                      + $"\t\t<color:white,darkred>Receive Characteristic : {receiveCharacteristic.Uuid} - {receiveCharacteristic.Properties} = {BitConverter.ToString(receiveCharacteristic.Value)}</color>\n"
-                                      + $"\t\t<color:white,darkgreen>Send Characteristic : {receiveCharacteristic.Uuid} - {receiveCharacteristic.Properties} = {BitConverter.ToString(sendCharacteristic.Value)}</color>\n"
-                    );
-
-                    _gattCharacteristicsLogged = true;
-                }
             }
+            
+            Logger.WriteLine($"<color:yellow>MonitorDevice End [{Id}] {Name}</color>");
         }
         
-        public async void QueryGATT()
+        public async void QueryGATT(bool loadSettingsOnFound)
         {
-            status = DeviceStatus.QueryingService;
+            Status = DeviceStatus.QueryingService;
             bluetoothDevice = null;
             while (bluetoothDevice == null)
             {
@@ -219,11 +244,13 @@ namespace MothManager.NeewerLEDControl
                 {
                     Logger.WriteLine(LogEntryType.Error, $"FAILED TO GET LIGHT CONTROL SERVICE!", $"{Name} = {Id}");
                     
-                    status = DeviceStatus.MissingService;
+                    Status = DeviceStatus.MissingService;
                     return;
                 }
+                
+                Logger.WriteLine($"<Color:green>Service Found!</Color> - Thread ID{Thread.CurrentThread.ManagedThreadId}", $"{Name} = {Id}");
 
-                status = DeviceStatus.QueryingReceive;
+                Status = DeviceStatus.QueryingReceive;
                 attemptsRemaining = 4;
                 
                 while (attemptsRemaining > 0 && receiveCharacteristic == null)
@@ -238,11 +265,13 @@ namespace MothManager.NeewerLEDControl
                 if (receiveCharacteristic == null)
                 {
                     Logger.WriteLine(LogEntryType.Error, "FAILED TO GET LIGHT DATA RECEIVE CHARACTERISTIC\n", $"{Name} = {Id}");
-                    status = DeviceStatus.MissingReceive;
+                    Status = DeviceStatus.MissingReceive;
                     return;
                 }
                 
-                status = DeviceStatus.QueryingSend;
+                Logger.WriteLine($"<Color:green>Receive Characteristic Found!</Color> - Thread ID{Thread.CurrentThread.ManagedThreadId}", $"{Name} = {Id}");
+                
+                Status = DeviceStatus.QueryingSend;
                 attemptsRemaining = 4;
                 
                 while (attemptsRemaining > 0 && sendCharacteristic == null)
@@ -255,11 +284,19 @@ namespace MothManager.NeewerLEDControl
                 if (sendCharacteristic == null)
                 {
                     Logger.WriteLine(LogEntryType.Error, "FAILED TO GET LIGHT DATA SEND CHARACTERISTIC\n", $"{Name} = {Id}");
-                    status = DeviceStatus.MissingSend;
+                    Status = DeviceStatus.MissingSend;
                     return;
                 }
-                
-                status = DeviceStatus.Ready;
+
+                Logger.WriteLine($"<Color:green>Send Characteristic Found!</Color> - Thread ID{Thread.CurrentThread.ManagedThreadId}", $"{Name} = {Id}");
+
+                Status = DeviceStatus.GattInitialized;
+
+                if (loadSettingsOnFound)
+                {
+                    LoadStateFromSettings();
+                    Status = DeviceStatus.Ready;
+                }
             }
             catch (Exception ex)
             {
