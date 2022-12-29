@@ -11,7 +11,7 @@ public partial class Form1 : Form
 {
     private BackgroundWorker _scanBackgroundWorker;
     private readonly NeewerLedDeviceManager _neewerLedDeviceManager;
-    private Dictionary<string, DiscoveredDeviceInfoBase> _discoveredDevices;
+    private Dictionary<string, DiscoveredNeewerLEDDeviceInfo> _discoveredDevices;
     private DeviceUserSettings _deviceUserSettings;
 
     public event Action OnSaveSettings;
@@ -111,9 +111,9 @@ public partial class Form1 : Form
 
     private void addDiscoveredButton_Click(object sender, EventArgs e)
     {
-        foreach (DiscoveredDeviceInfoBase deviceInfo in discoveredDeviceListBox.SelectedItems)
+        foreach (DiscoveredNeewerLEDDeviceInfo deviceInfo in discoveredDeviceListBox.SelectedItems)
         {
-            _neewerLedDeviceManager.ConnectDevice(deviceInfo, _deviceUserSettings.DeviceSettings);
+            _neewerLedDeviceManager.ConnectDevice(deviceInfo, _deviceUserSettings.NeewerDeviceSettings);
         }
     }
 
@@ -130,12 +130,12 @@ public partial class Form1 : Form
     public void SetDeviceUserSettings(DeviceUserSettings settings)
     {
         _deviceUserSettings = settings;
-        _neewerLedDeviceManager.UpdateKnownDeviceSettings(settings.DeviceSettings, _deviceUserSettings.AutoConnectOnLoad);
+        _neewerLedDeviceManager.UpdateKnownDeviceSettings(settings.NeewerDeviceSettings, _deviceUserSettings.AutoConnectOnLoad);
     }
     
     public DeviceUserSettings GetDeviceUserSettings()
     {
-        _deviceUserSettings.DeviceSettings = _neewerLedDeviceManager.GetKnownDeviceSettings().ToList();
+        _deviceUserSettings.NeewerDeviceSettings = _neewerLedDeviceManager.GetKnownDeviceSettings().ToList();
         return _deviceUserSettings;
     }
 
@@ -149,17 +149,14 @@ public partial class Form1 : Form
         OnSaveSettings.Invoke();
     }
 
-    private void OnDeviceAdded(DeviceBase device)
+    private void OnDeviceAdded(NeewerLedDevice device)
     {
         this.InvokeOnUIThread(() => AddDeviceUI(device));
     }
 
-    private void AddDeviceUI(DeviceBase device)
+    private void AddDeviceUI(NeewerLedDevice device)
     {
-        if (device is NeewerLedDevice neewerLedDevice)
-        {
-            knownDevicePanel.Controls.Add(new NeewerLedPanelSettings(neewerLedDevice));
-        }
+       knownDevicePanel.Controls.Add(new NeewerLedPanelSettings(device));
     }
 
     public void Startup()

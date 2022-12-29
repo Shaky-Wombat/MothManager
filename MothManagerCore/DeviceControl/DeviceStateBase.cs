@@ -6,16 +6,22 @@ using System.Text.Json.Serialization;
 
 namespace MothManager.Core.DeviceControl;
 
-[Serializable]
-public abstract class DeviceStateBase : INotifyPropertyChanged
+public interface IDeviceState :  INotifyPropertyChanged
 {
-    private class MultiPropertyChangeScope : IDisposable
+    public enum DeviceMode : byte
+    {
+        White,
+        Color,
+        Custom
+    }
+    
+    public class MultiPropertyChangeScope : IDisposable
     {
         private readonly HashSet<string> _changedProperties = new HashSet<string>();
         private readonly MultiPropertyChangeScope? _previousMultiPropertyChangeScope;
-        private readonly DeviceStateBase _owner;
+        private readonly IDeviceState _owner;
             
-        public MultiPropertyChangeScope(DeviceStateBase owner)
+        public MultiPropertyChangeScope(IDeviceState owner)
         {
             _owner = owner;
             _previousMultiPropertyChangeScope = owner.ChangeScope;
@@ -41,16 +47,32 @@ public abstract class DeviceStateBase : INotifyPropertyChanged
             _changedProperties.Add(propertyName);
         }
     }
+    
+     MultiPropertyChangeScope? ChangeScope { get; set; }
+     bool Power { get; set; }
+     DeviceMode Mode { get; set; }
+     int Temperature { get; set; }
+     float Hue { get; set; }
+     float Saturation { get; set; }
+     float Brightness { get; set; }
 
+     void OnMultiPropertyChanged(HashSet<string> changedProperties);
+}
+
+[Serializable]
+public abstract class DeviceStateBase<TDeviceState, TSceneIdEnum> : IDeviceState
+    where TDeviceState : DeviceStateBase<TDeviceState, TSceneIdEnum>
+    where TSceneIdEnum : Enum
+{
     private bool _power;
-    private DeviceBase.DeviceMode _mode;
+    private IDeviceState.DeviceMode _mode;
     private int _temperature;
     private float _hue;
     private float _saturation;
     private float _brightness;
-    private int _customSceneId;
+    private TSceneIdEnum _customSceneId;
         
-    private MultiPropertyChangeScope? ChangeScope { get; set; }
+    public IDeviceState.MultiPropertyChangeScope? ChangeScope { get; set; }
 
     [JsonIgnore]
     public abstract Type CustomModeIdEnumType { get; }
@@ -61,7 +83,7 @@ public abstract class DeviceStateBase : INotifyPropertyChanged
         set => SetField(ref _power, value);
     }
 
-    public DeviceBase.DeviceMode Mode
+    public IDeviceState.DeviceMode Mode
     {
         get => _mode;
         set => SetField(ref _mode, value);
@@ -91,7 +113,7 @@ public abstract class DeviceStateBase : INotifyPropertyChanged
         set => SetField(ref _brightness, value);
     }
 
-    public int CustomSceneId
+    public TSceneIdEnum CustomSceneId
     {
         get => _customSceneId;
         set => SetField(ref _customSceneId, value);
@@ -101,7 +123,7 @@ public abstract class DeviceStateBase : INotifyPropertyChanged
     {
     }
 
-    protected DeviceStateBase(DeviceStateBase state)
+    protected DeviceStateBase(TDeviceState state)
     {
         _power = state.Power;
         _mode = state.Mode;
@@ -114,9 +136,9 @@ public abstract class DeviceStateBase : INotifyPropertyChanged
 
     public void SetWhite(int temperature, float brightness)
     {
-        using (new MultiPropertyChangeScope(this))
+        using (new IDeviceState.MultiPropertyChangeScope(this))
         {
-            Mode = DeviceBase.DeviceMode.White;
+            Mode = IDeviceState.DeviceMode.White;
             Temperature = temperature;
             Brightness = brightness;
         }
@@ -124,30 +146,30 @@ public abstract class DeviceStateBase : INotifyPropertyChanged
 
     public void SetColor(float hue, float saturation, float brightness)
     {
-        using (new MultiPropertyChangeScope(this))
+        using (new IDeviceState.MultiPropertyChangeScope(this))
         {
-            Mode = DeviceBase.DeviceMode.Color;
+            Mode = IDeviceState.DeviceMode.Color;
             Hue = hue;
             Saturation = saturation;
             Brightness = brightness;
         }
     }
 
-    public void SetCustomScene(int customSceneId, float brightness)
+    public void SetCustomScene(TSceneIdEnum customSceneId, float brightness)
     {
-        using (new MultiPropertyChangeScope(this))
+        using (new IDeviceState.MultiPropertyChangeScope(this))
         {
-            Mode = DeviceBase.DeviceMode.Custom;
+            Mode = IDeviceState.DeviceMode.Custom;
             CustomSceneId = customSceneId;
             Brightness = brightness;
         }
     }
 
-    public abstract DeviceStateBase Clone();
+    public abstract TDeviceState Clone();
 
-    public virtual void CopyFrom(DeviceStateBase state)
+    public virtual void CopyFrom(TDeviceState state)
     {
-        using (new MultiPropertyChangeScope(this))
+        using (new IDeviceState.MultiPropertyChangeScope(this))
         {
             Power = state.Power;
             Mode = state.Mode;
@@ -183,7 +205,7 @@ public abstract class DeviceStateBase : INotifyPropertyChanged
     }
         
         
-    private void OnMultiPropertyChanged(HashSet<string> changedProperties)
+    public void OnMultiPropertyChanged(HashSet<string> changedProperties)
     {
         foreach (var propertyName in changedProperties)
         {

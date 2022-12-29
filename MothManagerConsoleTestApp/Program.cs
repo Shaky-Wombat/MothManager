@@ -148,8 +148,8 @@ namespace MothManagerConsoleTestApp
     
     internal class Program
     {
-        private static readonly HashSet<DiscoveredDeviceInfoBase> discoveredDeviceIdSelection = new HashSet<DiscoveredDeviceInfoBase>();
-        private static readonly HashSet<DeviceBase> knownDeviceIdSelection = new HashSet<DeviceBase>();
+        private static readonly HashSet<DiscoveredNeewerLEDDeviceInfo> discoveredDeviceIdSelection = new HashSet<DiscoveredNeewerLEDDeviceInfo>();
+        private static readonly HashSet<NeewerLedDevice> knownDeviceIdSelection = new HashSet<NeewerLedDevice>();
         
         private static Menu MainMenu = new Menu(
             "Main Menu",
@@ -245,7 +245,7 @@ namespace MothManagerConsoleTestApp
             return SetDiscoveredDeviceSelection(backMenu);
         }
 
-        private static Menu SetDiscoveredDeviceSelected(DiscoveredDeviceInfoBase discoveredDevice, bool selected, Menu backMenu)
+        private static Menu SetDiscoveredDeviceSelected(DiscoveredNeewerLEDDeviceInfo discoveredDevice, bool selected, Menu backMenu)
         {
             if (selected)
             {
@@ -264,15 +264,15 @@ namespace MothManagerConsoleTestApp
         {
             foreach (var deviceInfo in discoveredDeviceIdSelection)
             {
-                _neewerManager.ConnectDevice(deviceInfo, new List<DeviceSettingsBase>());    
+                _neewerManager.ConnectDevice(deviceInfo, new List<NeewerLedDeviceSettings>());    
             }
 
             knownDeviceIdSelection.UnionWith(_neewerManager.GetKnownDevices());
-            var connectingDevices = new HashSet<DeviceBase>(knownDeviceIdSelection);
+            var connectingDevices = new HashSet<NeewerLedDevice>(knownDeviceIdSelection);
             
             while (connectingDevices.Count > 0)
             {
-                var device = connectingDevices.First() as NeewerLedDevice;
+                var device = connectingDevices.First();
 
                 if (device == null)
                 {
@@ -327,7 +327,7 @@ namespace MothManagerConsoleTestApp
             return SetKnownDeviceSelection(backMenu);
         }
 
-        private static Menu SetKnownDeviceSelected(DeviceBase knownDevice, bool selected, Menu backMenu)
+        private static Menu SetKnownDeviceSelected(NeewerLedDevice knownDevice, bool selected, Menu backMenu)
         {
             if (selected)
             {

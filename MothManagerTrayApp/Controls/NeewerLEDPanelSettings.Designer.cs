@@ -123,6 +123,7 @@ namespace MothManagerTrayApp.Controls
             this.lNumericUpDown.Size = new System.Drawing.Size(58, 20);
             this.lNumericUpDown.TabIndex = 20;
             this.lNumericUpDown.TextAlign = System.Windows.Forms.HorizontalAlignment.Right;
+            this.lNumericUpDown.ValueChanged += new System.EventHandler(this.lNumericUpDown_ValueChanged);
             // 
             // lColorBar
             // 
@@ -130,6 +131,7 @@ namespace MothManagerTrayApp.Controls
             this.lColorBar.Name = "lColorBar";
             this.lColorBar.Size = new System.Drawing.Size(116, 20);
             this.lColorBar.TabIndex = 21;
+            this.lColorBar.ValueChanged += new System.EventHandler(this.lColorBar_ValueChanged);
             // 
             // bLabel
             // 
@@ -147,6 +149,7 @@ namespace MothManagerTrayApp.Controls
             this.sNumericUpDown.Size = new System.Drawing.Size(58, 20);
             this.sNumericUpDown.TabIndex = 17;
             this.sNumericUpDown.TextAlign = System.Windows.Forms.HorizontalAlignment.Right;
+            this.sNumericUpDown.ValueChanged += new System.EventHandler(this.sNumericUpDown_ValueChanged);
             // 
             // sColorBar
             // 
@@ -154,6 +157,7 @@ namespace MothManagerTrayApp.Controls
             this.sColorBar.Name = "sColorBar";
             this.sColorBar.Size = new System.Drawing.Size(116, 20);
             this.sColorBar.TabIndex = 18;
+            this.sColorBar.ValueChanged += new System.EventHandler(this.sColorBar_ValueChanged);
             // 
             // sLabel
             // 
@@ -170,6 +174,7 @@ namespace MothManagerTrayApp.Controls
             this.hColorBar.Name = "hColorBar";
             this.hColorBar.Size = new System.Drawing.Size(116, 20);
             this.hColorBar.TabIndex = 15;
+            this.hColorBar.ValueChanged += new System.EventHandler(this.hColorBar_ValueChanged);
             // 
             // hNumericUpDown
             // 
@@ -183,6 +188,7 @@ namespace MothManagerTrayApp.Controls
             this.hNumericUpDown.Size = new System.Drawing.Size(58, 20);
             this.hNumericUpDown.TabIndex = 14;
             this.hNumericUpDown.TextAlign = System.Windows.Forms.HorizontalAlignment.Right;
+            this.hNumericUpDown.ValueChanged += new System.EventHandler(this.hNumericUpDown_ValueChanged);
             // 
             // hLabel
             // 
@@ -199,6 +205,7 @@ namespace MothManagerTrayApp.Controls
             this.tColorBar.Name = "tColorBar";
             this.tColorBar.Size = new System.Drawing.Size(116, 20);
             this.tColorBar.TabIndex = 25;
+            this.tColorBar.ValueChanged += new System.EventHandler(this.tColorBar_ValueChanged);
             // 
             // tNumericUpDown
             // 
@@ -212,6 +219,7 @@ namespace MothManagerTrayApp.Controls
             this.tNumericUpDown.Size = new System.Drawing.Size(58, 20);
             this.tNumericUpDown.TabIndex = 24;
             this.tNumericUpDown.TextAlign = System.Windows.Forms.HorizontalAlignment.Right;
+            this.tNumericUpDown.ValueChanged += new System.EventHandler(this.tNumericUpDown_ValueChanged);
             // 
             // tLabel
             // 
@@ -280,6 +288,7 @@ namespace MothManagerTrayApp.Controls
             this.powerOnButton.TabIndex = 6;
             this.powerOnButton.Text = "On";
             this.powerOnButton.UseVisualStyleBackColor = true;
+            this.powerOnButton.Click += new System.EventHandler(this.powerOnButton_Click);
             // 
             // powerOffButton
             // 
@@ -290,6 +299,7 @@ namespace MothManagerTrayApp.Controls
             this.powerOffButton.TabIndex = 7;
             this.powerOffButton.Text = "Off";
             this.powerOffButton.UseVisualStyleBackColor = true;
+            this.powerOffButton.Click += new System.EventHandler(this.powerOffButton_Click);
             // 
             // whiteModeButton
             // 
@@ -300,6 +310,7 @@ namespace MothManagerTrayApp.Controls
             this.whiteModeButton.TabIndex = 8;
             this.whiteModeButton.Text = "White";
             this.whiteModeButton.UseVisualStyleBackColor = true;
+            this.whiteModeButton.Click += new System.EventHandler(this.whiteModeButton_Click);
             // 
             // colorModeButton
             // 
@@ -310,6 +321,7 @@ namespace MothManagerTrayApp.Controls
             this.colorModeButton.TabIndex = 9;
             this.colorModeButton.Text = "Color";
             this.colorModeButton.UseVisualStyleBackColor = true;
+            this.colorModeButton.Click += new System.EventHandler(this.colorModeButton_Click);
             // 
             // sceneModeButton
             // 
@@ -320,6 +332,7 @@ namespace MothManagerTrayApp.Controls
             this.sceneModeButton.TabIndex = 10;
             this.sceneModeButton.Text = "Scene";
             this.sceneModeButton.UseVisualStyleBackColor = true;
+            this.sceneModeButton.Click += new System.EventHandler(this.sceneModeButton_Click);
             // 
             // sceneComboBox
             // 
@@ -328,6 +341,7 @@ namespace MothManagerTrayApp.Controls
             this.sceneComboBox.Name = "sceneComboBox";
             this.sceneComboBox.Size = new System.Drawing.Size(148, 21);
             this.sceneComboBox.TabIndex = 27;
+            this.sceneComboBox.SelectedIndexChanged += new System.EventHandler(this.sceneComboBox_SelectedIndexChanged);
             // 
             // sceneLabel
             // 

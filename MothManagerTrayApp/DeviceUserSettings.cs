@@ -1,4 +1,5 @@
 ﻿using MothManager.Core.DeviceControl;
+using MothManager.NeewerLEDControl;
 
 namespace MothManagerTrayApp;
 
@@ -6,6 +7,6 @@ namespace MothManagerTrayApp;
 public class DeviceUserSettings
 {
     public bool AutoConnectOnLoad { get; set; } = true;
-    public List<DeviceSettingsBase> DeviceSettings { get; set; } = new List<DeviceSettingsBase>();
+    public List<NeewerLedDeviceSettings> NeewerDeviceSettings { get; set; } = new List<NeewerLedDeviceSettings>();
     public int ConnectAttemptsAllowed { get; set; } = 10;
 }

@@ -20,11 +20,11 @@ namespace MothManager.NeewerLEDControl
         //private static Dictionary<string, string> discoveredBLE = new Dictionary<string, string>();
         private static IReadOnlyCollection<BluetoothDevice> discoveredDevices = null;
 
-        public static async Task<Dictionary<string, DiscoveredDeviceInfoBase>> DiscoverDevicesAsync()
+        public static async Task<Dictionary<string, DiscoveredNeewerLEDDeviceInfo>> DiscoverDevicesAsync()
         {
             scanFilter = new BluetoothLEScanFilter();
             rdo = new RequestDeviceOptions();
-            var discoveredBLE = new Dictionary<string, DiscoveredDeviceInfoBase>();
+            var discoveredBLE = new Dictionary<string, DiscoveredNeewerLEDDeviceInfo>();
             scanFilter.NamePrefix = "NEEWER";
             rdo.Filters.Add(scanFilter);
 

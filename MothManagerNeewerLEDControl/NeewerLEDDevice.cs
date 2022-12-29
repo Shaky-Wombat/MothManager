@@ -11,6 +11,7 @@ using InTheHand.Bluetooth;
 using MothManager.Core;
 using MothManager.Core.DeviceControl;
 using MothManager.Core.Logger;
+using System.Text.Json.Serialization;
 
 namespace MothManager.NeewerLEDControl
 {
@@ -30,7 +31,7 @@ namespace MothManager.NeewerLEDControl
     }*/
 
     [Serializable]
-    public class NeewerLedDeviceSettings : DeviceSettingsBase
+    public class NeewerLedDeviceSettings : DeviceSettingsBase<NeewerLedDeviceSettings, DiscoveredNeewerLEDDeviceInfo, NeewerLEDDeviceState, NeewerSceneId>
     {
         public DeviceCapabilities Capabilities { get; set; }
 
@@ -44,30 +45,19 @@ namespace MothManager.NeewerLEDControl
             State.SetWhite((Capabilities.minTemperature + Capabilities.maxTemperature) / 2, 0.5f);
         }
 
-        public override void CopyFrom(DeviceSettingsBase settings, bool overwriteId = false)
+        public override void CopyFrom(NeewerLedDeviceSettings settings, bool overwriteId = false)
         {
             base.CopyFrom(settings, overwriteId);
 
-            if (settings is NeewerLedDeviceSettings neewerSettings)
-            {
-                Capabilities = neewerSettings.Capabilities;
-
-                if (settings.State is NeewerLEDDeviceState)
-                {
-                    State = settings.State;
-                }
-                else
-                {
-                    State.CopyFrom(settings.State);
-                }
-                
-            }
+            Capabilities = settings.Capabilities;
+            State = settings.State;
         }
     }
 
-    public class NeewerLEDDeviceState : DeviceStateBase
+    public class NeewerLEDDeviceState : DeviceStateBase<NeewerLEDDeviceState, NeewerSceneId>
     {
-        public override Type CustomModeIdEnumType => typeof(NeewerLedDevice.SceneId);
+        [JsonIgnore]
+        public override Type CustomModeIdEnumType => typeof(NeewerSceneId);
 
         public NeewerLEDDeviceState() : base()
         {
@@ -77,13 +67,39 @@ namespace MothManager.NeewerLEDControl
         {
         }
         
-        public override DeviceStateBase Clone()
+        public override NeewerLEDDeviceState Clone()
         {
             return new NeewerLEDDeviceState(this);
         }
     }
+
+    public class NeewerDeviceCommand
+    {
+        public readonly Action command;
+        public readonly bool requiresConnection;
+
+        public NeewerDeviceCommand(Action command, bool requiresConnection = true)
+        {
+            this.command = command;
+            this.requiresConnection = requiresConnection;
+        }
+    }
     
-    public class NeewerLedDevice : DeviceBase
+    
+    public enum NeewerSceneId : byte
+    {
+        CopCar = 1,
+        Ambulance = 2,
+        FireEngine = 3,
+        Fireworks = 4,
+        Party = 5,
+        CandleLight = 6,
+        Lightning = 7,
+        Paparazzi = 8,
+        TVScreen = 9
+    }
+    
+    public class NeewerLedDevice : DeviceBase<DiscoveredNeewerLEDDeviceInfo, NeewerLedDeviceSettings, NeewerLEDDeviceState, NeewerSceneId>
     {
         public enum CommandType : byte
         {
@@ -99,20 +115,6 @@ namespace MothManager.NeewerLEDControl
             SceneSend = 136
         }
         
-        public enum SceneId : byte
-        {
-            CopCar = 1,
-            Ambulance = 2,
-            FireEngine = 3,
-            Fireworks = 4,
-            Party = 5,
-            CandleLight = 6,
-            Lightning = 7,
-            Paparazzi = 8,
-            TVScreen = 9
-        }
-
-
         private const byte CommandPrefix = 120;
         private static readonly BluetoothUuid LightControlServiceId = new Guid("69400001-b5a3-f393-e0a9-e50e24dcca99");
         private static readonly BluetoothUuid SendCharacteristicId = new Guid("69400002-b5a3-f393-e0a9-e50e24dcca99");
@@ -149,7 +151,13 @@ namespace MothManager.NeewerLEDControl
             private set => SetField(ref _status, value);
         }
 
-        public ConcurrentQueue<byte[]> sendQueue = new ConcurrentQueue<byte[]>();
+        public new NeewerLedDeviceSettings Settings
+        {
+            get => base.Settings as NeewerLedDeviceSettings;
+        }
+
+        // public ConcurrentQueue<byte[]> sendQueue = new ConcurrentQueue<byte[]>();
+        public BlockingCollection<NeewerDeviceCommand> commandQueue = new BlockingCollection<NeewerDeviceCommand>(128);
         private bool _gattCharacteristicsLogged;
         private DeviceStatus _status = DeviceStatus.Uninitialized;
 
@@ -164,6 +172,7 @@ namespace MothManager.NeewerLEDControl
             Logger.WriteLine($"<color:cyan>Connect [{Id}] {Name}</color>");
 
             monitorThread = new Thread(MonitorDevice);
+            commandQueue.Add(new NeewerDeviceCommand(()=> QueryGATT(true), false));
             monitorThread.Start();
         }
         
@@ -174,6 +183,20 @@ namespace MothManager.NeewerLEDControl
             stayActive = true;
             while (stayActive)
             {
+                var command = commandQueue.Take();
+
+                if (command.requiresConnection && !Connected)
+                {
+                    Logger.WriteLine(LogEntryType.Error, $"{Name} = {Id}", "Unable to submit command as device is not connected." );
+                    
+                    //TODD: Attempt reconnect
+                    
+                    continue;
+                }
+                
+                command.command.Invoke();
+                
+                /*
                 if (Status != DeviceStatus.Ready)
                 {
                     try
@@ -210,9 +233,19 @@ namespace MothManager.NeewerLEDControl
                         sendCharacteristic.WriteValueWithResponseAsync(message).Wait();
                     }
                 }
+                */
             }
             
             Logger.WriteLine($"<color:yellow>MonitorDevice End [{Id}] {Name}</color>");
+        }
+
+        public void SendToDevice(byte[] message)
+        {
+            Logger.WriteLine($"<color:white:darkgreen>Sending {(CommandType)message[1]} to device: {BitConverter.ToString(message)}</color>");
+                        
+                        
+            //byte[] bytesCommand = Encoding.ASCII.GetBytes(message + "\r\n");
+            sendCharacteristic.WriteValueWithResponseAsync(message).Wait();
         }
         
         public async void QueryGATT(bool loadSettingsOnFound)
@@ -306,6 +339,10 @@ namespace MothManager.NeewerLEDControl
 
         public override void Disconnect()
         {
+            if (Connected)
+            {
+                commandQueue.Add(new NeewerDeviceCommand(() => stayActive = false, false));
+            }
             stayActive = false;
             
             if (bluetoothDevice != null)
@@ -314,7 +351,7 @@ namespace MothManager.NeewerLEDControl
             }
         }
 
-        protected override void SetCurrentState(DeviceStateBase value)
+        protected override void SetCurrentState(NeewerLEDDeviceState value)
         {
             State.CopyFrom(value);
             
@@ -325,10 +362,11 @@ namespace MothManager.NeewerLEDControl
         protected override void SetPower(bool value)
         {
             State.Power = value;
-            sendQueue.Enqueue(GetCommandBytes(CommandType.PowerSend, (byte)(value ? 1 : 2)));
+            commandQueue.Add(new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(CommandType.PowerSend, (byte)(value ? 1 : 2)))));
+            //sendQueue.Enqueue(GetCommandBytes(CommandType.PowerSend, (byte)(value ? 1 : 2)));
         }
 
-        protected override void SetMode(DeviceMode value)
+        protected override void SetMode(IDeviceState.DeviceMode value)
         {
             State.Mode = value;
             SendModeToDevice();
@@ -340,7 +378,7 @@ namespace MothManager.NeewerLEDControl
 
             //TODO: Handle CCT Only lights (Separate commands for temperature and brightness)
             
-            if (State.Mode == DeviceMode.White)
+            if (State.Mode == IDeviceState.DeviceMode.White)
             {
                 SendWhiteToDevice();        
             }
@@ -350,7 +388,7 @@ namespace MothManager.NeewerLEDControl
         {
             State.Hue = value;
 
-            if (State.Mode == DeviceMode.Color)
+            if (State.Mode == IDeviceState.DeviceMode.Color)
             {
                 SendColorToDevice();
             }
@@ -360,7 +398,7 @@ namespace MothManager.NeewerLEDControl
         {
             State.Saturation = value;
 
-            if (State.Mode == DeviceMode.Color)
+            if (State.Mode == IDeviceState.DeviceMode.Color)
             {
                 SendColorToDevice();
             }
@@ -375,10 +413,13 @@ namespace MothManager.NeewerLEDControl
             SendModeToDevice();
         }
 
-        protected override void SetCustomSceneId(int value)
+        protected override void SetCustomSceneId(NeewerSceneId value)
         {
             State.CustomSceneId = value;
-            SendCustomSceneToDevice();
+            if (State.Mode == IDeviceState.DeviceMode.Custom)
+            {
+                SendCustomSceneToDevice();
+            }
         }
 
         public override void SetWhite(int temperature, float brightness)
@@ -393,7 +434,7 @@ namespace MothManager.NeewerLEDControl
             SendColorToDevice();
         }
 
-        public override void SetCustomScene(int customSceneId, float brightness)
+        public override void SetCustomScene(NeewerSceneId customSceneId, float brightness)
         {
             State.SetCustomScene(customSceneId, brightness);
             SendCustomSceneToDevice();
@@ -403,13 +444,13 @@ namespace MothManager.NeewerLEDControl
         {
             switch (State.Mode)
             {
-                case DeviceMode.White:
+                case IDeviceState.DeviceMode.White:
                     SendWhiteToDevice();
                     break;
-                case DeviceMode.Color:
+                case IDeviceState.DeviceMode.Color:
                     SendColorToDevice();
                     break;
-                case DeviceMode.Custom:
+                case IDeviceState.DeviceMode.Custom:
                     SendCustomSceneToDevice();
                     break;
                 default:
@@ -420,18 +461,21 @@ namespace MothManager.NeewerLEDControl
         private void SendWhiteToDevice()
         {
             //TODO: Handle CCT only devices.
-            sendQueue.Enqueue(GetCommandBytes(CommandType.CCTSend, (byte)(State.Brightness * 100), (byte)(State.Temperature / 100)));
+            commandQueue.Add(new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(CommandType.CCTSend, (byte)(State.Brightness * 100), (byte)(State.Temperature / 100)))));
+            //sendQueue.Enqueue(GetCommandBytes(CommandType.CCTSend, (byte)(State.Brightness * 100), (byte)(State.Temperature / 100)));
         }
         
         private void SendColorToDevice()
         {
             var hueInt = (int)(State.Hue * 360f) % 360;
-            sendQueue.Enqueue(GetCommandBytes(CommandType.HSVSend, (byte)(hueInt & 255), (byte)((hueInt & 65280) >> 8), (byte)(State.Saturation * 100), (byte)(State.Brightness * 100)));
+            commandQueue.Add(new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(CommandType.HSVSend, (byte)(hueInt & 255), (byte)((hueInt & 65280) >> 8), (byte)(State.Saturation * 100), (byte)(State.Brightness * 100)))));
+            //sendQueue.Enqueue(GetCommandBytes(CommandType.HSVSend, (byte)(hueInt & 255), (byte)((hueInt & 65280) >> 8), (byte)(State.Saturation * 100), (byte)(State.Brightness * 100)));
         }
         
         private void SendCustomSceneToDevice()
         {
-            sendQueue.Enqueue(GetCommandBytes(CommandType.SceneSend, (byte)State.CustomSceneId, (byte)(State.Brightness * 100)));
+            commandQueue.Add(new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(CommandType.SceneSend, (byte)State.CustomSceneId, (byte)(State.Brightness * 100)))));
+            //sendQueue.Enqueue(GetCommandBytes(CommandType.SceneSend, (byte)State.CustomSceneId, (byte)(State.Brightness * 100)));
         }
 
         public byte[] GetCommandBytes(CommandType commandType, params byte[] values)

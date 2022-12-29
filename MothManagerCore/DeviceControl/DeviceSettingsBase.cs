@@ -2,20 +2,45 @@
 
 namespace MothManager.Core.DeviceControl;
 
-[Serializable]
-public abstract class DeviceSettingsBase
+public interface IDeviceSettings
 {
     public string Id { get; set; }
     public string Name { get; set; }
     public string DeviceName { get; set; }
-    public DeviceStateBase State {get; set; }
+    public abstract IDeviceState State {get; set; }
+}
 
-    protected DeviceSettingsBase(DeviceStateBase defaultState)
+[Serializable]
+public abstract class DeviceSettingsBase<TDeviceSettingsBase, TDiscoveredDeviceInfo, TState, TSceneIdEnum>:IDeviceSettings
+    where TDeviceSettingsBase : DeviceSettingsBase<TDeviceSettingsBase, TDiscoveredDeviceInfo, TState, TSceneIdEnum>
+    where TDiscoveredDeviceInfo:DiscoveredDeviceInfoBase 
+    where TState : DeviceStateBase<TState, TSceneIdEnum>
+    where TSceneIdEnum : Enum
+{
+    public string Id { get; set; }
+    public string Name { get; set; }
+    public string DeviceName { get; set; }
+    
+    IDeviceState IDeviceSettings.State
+    {
+        get => State;
+        set
+        {
+            if (value is TState tState)
+            {
+                State = tState;
+            }
+        }
+    }
+
+    public TState State {get; set; }
+
+    protected DeviceSettingsBase(TState defaultState)
     {
         State = defaultState;
     }
 
-    protected DeviceSettingsBase(DiscoveredDeviceInfoBase info, DeviceStateBase defaultSate)
+    protected DeviceSettingsBase(TDiscoveredDeviceInfo info, TState defaultSate)
     {
         Id = info.Id;
         Name = info.DeviceName;
@@ -23,7 +48,7 @@ public abstract class DeviceSettingsBase
         State = defaultSate;
     }
 
-    public virtual void CopyFrom(DeviceSettingsBase settings, bool overwriteId = false)
+    public virtual void CopyFrom(TDeviceSettingsBase settings, bool overwriteId = false)
     {
         if (overwriteId)
         {

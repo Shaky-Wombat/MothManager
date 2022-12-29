@@ -1,26 +1,24 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace MothManager.Core.DeviceControl;
 
-public abstract class DeviceBase : INotifyPropertyChanged
+public abstract class DeviceBase<TDiscoveredDeviceInfo, TSettings, TState, TSceneIdEnum> : INotifyPropertyChanged 
+    where TDiscoveredDeviceInfo:DiscoveredDeviceInfoBase  
+    where TSettings : DeviceSettingsBase<TSettings, TDiscoveredDeviceInfo, TState, TSceneIdEnum> 
+    where TState : DeviceStateBase<TState, TSceneIdEnum>
+    where TSceneIdEnum : Enum
 {
-    public enum DeviceMode : byte
-    {
-        White,
-        Color,
-        Custom
-    }
-
-    public DeviceSettingsBase Settings { get; }
-    protected DeviceStateBase State { get; set; }
+    public TSettings Settings { get; }
+    protected TState State { get; set; }
     public string Id => Settings.Id;
     public string Name => Settings.Name;
 
     public abstract bool Connected { get; }
 
-    public DeviceStateBase CurrentState
+    public TState CurrentState
     {
         get => State;
         set
@@ -40,7 +38,7 @@ public abstract class DeviceBase : INotifyPropertyChanged
         }
     }
 
-    public DeviceMode Mode
+    public IDeviceState.DeviceMode Mode
     {
         get => State.Mode;
         set
@@ -90,9 +88,9 @@ public abstract class DeviceBase : INotifyPropertyChanged
         }
     }
 
-    public int CustomSceneId
+    public TSceneIdEnum CustomSceneId
     {
-        get => CustomSceneId;
+        get => State.CustomSceneId;
         set
         {
             SetCustomSceneId(value);
@@ -103,23 +101,23 @@ public abstract class DeviceBase : INotifyPropertyChanged
     public abstract void Connect(int attemptsAllowed);
     public abstract void Disconnect();
 
-    protected abstract void SetCurrentState(DeviceStateBase value);
+    protected abstract void SetCurrentState(TState value);
     protected abstract void SetPower(bool value);
-    protected abstract void SetMode(DeviceMode value);
+    protected abstract void SetMode(IDeviceState.DeviceMode value);
     protected abstract void SetTemperature(int value);
     protected abstract void SetHue(float value);
     protected abstract void SetSaturation(float value);
     protected abstract void SetBrightness(float value);
-    protected abstract void SetCustomSceneId(int value);
+    protected abstract void SetCustomSceneId(TSceneIdEnum value);
 
     public abstract void SetWhite(int temperature, float brightness);
     public abstract void SetColor(float hue, float saturation, float brightness);
-    public abstract void SetCustomScene(int customSceneId, float brightness);
+    public abstract void SetCustomScene(TSceneIdEnum customSceneId, float brightness);
 
-    protected DeviceBase(DeviceSettingsBase settings)
+    protected DeviceBase(TSettings settings)
     {
         Settings = settings;
-        State = settings.State.Clone();
+        State = (TState)settings.State.Clone();
     }
 
     public void SaveStateToSettings()
@@ -133,7 +131,7 @@ public abstract class DeviceBase : INotifyPropertyChanged
         SetCurrentState(State);
     }
 
-    public void ApplySettings(DeviceSettingsBase settings)
+    public void ApplySettings(TSettings settings)
     {
         Settings.CopyFrom(settings);
         SetCurrentState(Settings.State);

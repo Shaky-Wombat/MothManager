@@ -98,7 +98,7 @@ class MothManagerApplicationContext : ApplicationContext
         var deviceUserSettings = _form.GetDeviceUserSettings();
         serializer.Serialize(writer, deviceUserSettings);
         
-        Logger.WriteLine(deviceUserSettings.DeviceSettings.Count + " DEVICE SETTINGS!");
+        Logger.WriteLine(deviceUserSettings.NeewerDeviceSettings.Count + " DEVICE SETTINGS!");
     }
 
     private void OnAppExit(object? sender, EventArgs e)
