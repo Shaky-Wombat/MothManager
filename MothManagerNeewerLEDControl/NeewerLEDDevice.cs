@@ -12,6 +12,7 @@ using MothManager.Core;
 using MothManager.Core.DeviceControl;
 using MothManager.Core.Logger;
 using System.Text.Json.Serialization;
+using ABI.System.Windows.Input;
 
 namespace MothManager.NeewerLEDControl
 {
@@ -31,7 +32,8 @@ namespace MothManager.NeewerLEDControl
     }*/
 
     [Serializable]
-    public class NeewerLedDeviceSettings : DeviceSettingsBase<NeewerLedDeviceSettings, DiscoveredNeewerLEDDeviceInfo, NeewerLEDDeviceState, NeewerSceneId>
+    public class NeewerLedDeviceSettings : DeviceSettingsBase<NeewerLedDeviceSettings, DiscoveredNeewerLEDDeviceInfo,
+        NeewerLEDDeviceState, NeewerSceneId>
     {
         public DeviceCapabilities Capabilities { get; set; }
 
@@ -56,36 +58,83 @@ namespace MothManager.NeewerLEDControl
 
     public class NeewerLEDDeviceState : DeviceStateBase<NeewerLEDDeviceState, NeewerSceneId>
     {
-        [JsonIgnore]
-        public override Type CustomModeIdEnumType => typeof(NeewerSceneId);
+        [JsonIgnore] public override Type CustomModeIdEnumType => typeof(NeewerSceneId);
 
         public NeewerLEDDeviceState() : base()
         {
         }
-        
+
         public NeewerLEDDeviceState(NeewerLEDDeviceState state) : base(state)
         {
         }
-        
+
         public override NeewerLEDDeviceState Clone()
         {
             return new NeewerLEDDeviceState(this);
         }
     }
 
-    public class NeewerDeviceCommand
-    {
-        public readonly Action command;
-        public readonly bool requiresConnection;
 
-        public NeewerDeviceCommand(Action command, bool requiresConnection = true)
-        {
-            this.command = command;
-            this.requiresConnection = requiresConnection;
-        }
-    }
-    
-    
+    //     public enum CommandType
+    //     {
+    //         Connect,
+    //         Disconnect,
+    //         Power,
+    //         Temperature,
+    //         Hue,
+    //         Saturation,
+    //         Brightness,
+    //         Scene,
+    //         Mode,
+    //     }
+    //
+    //     public readonly CommandType type;
+    //
+    //     //public readonly Action command;
+    //     public readonly bool requiresConnection;
+    //     public readonly float floatVal;
+    //     public readonly int intVal;
+    //
+    //     private NeewerDeviceCommand(CommandType commandType)
+    //     {
+    //         //this.command = command;
+    //         type = commandType;
+    //         requiresConnection = false;
+    //     }
+    //
+    //     private NeewerDeviceCommand(CommandType commandType, float value)
+    //     {
+    //         type = commandType;
+    //         floatVal = value;
+    //         requiresConnection = true;
+    //     }
+    //     
+    //     private NeewerDeviceCommand(CommandType commandType, int value)
+    //     {
+    //         type = commandType;
+    //         intVal = value;
+    //         requiresConnection = true;
+    //     }
+    //
+    //     // public static NeewerDeviceCommand SetColore(float hue, float saturation, float brightness)
+    //     // {
+    //     //     var hueInt = (int)(hue * 360f) % 360;
+    //     //     return new NeewerDeviceCommand(NeewerLedDevice.BluetoothCommandByte.HSVSend,
+    //     //         new byte[]
+    //     //         {
+    //     //             (byte)(hueInt & 255), (byte)((hueInt & 65280) >> 8), (byte)(saturation * 100),
+    //     //             (byte)(brightness * 100)
+    //     //         });
+    //     // }
+    //     //
+    //     // public static NeewerDeviceCommand SetScene(float brightness, NeewerSceneId sceneId)
+    //     // {
+    //     //     return new NeewerDeviceCommand(NeewerLedDevice.BluetoothCommandByte.SceneSend,
+    //     //         new byte[] { (byte)(brightness * 100), (byte)sceneId });
+    //     // }
+    // }
+
+
     public enum NeewerSceneId : byte
     {
         CopCar = 1,
@@ -98,10 +147,129 @@ namespace MothManager.NeewerLEDControl
         Paparazzi = 8,
         TVScreen = 9
     }
-    
-    public class NeewerLedDevice : DeviceBase<DiscoveredNeewerLEDDeviceInfo, NeewerLedDeviceSettings, NeewerLEDDeviceState, NeewerSceneId>
+
+    public class NeewerLedDevice : DeviceBase<DiscoveredNeewerLEDDeviceInfo, NeewerLedDeviceSettings,
+        NeewerLEDDeviceState, NeewerSceneId>
     {
-        public enum CommandType : byte
+        public abstract class NeewerDeviceCommand
+        {
+            public readonly bool requiresConnection;
+            public readonly bool affectsPower;
+            public readonly bool affectsMode;
+
+            protected NeewerDeviceCommand(bool affectsPower, bool affectsMode, bool requiresConnection)
+            {
+                this.affectsPower = affectsPower;
+                this.affectsMode = affectsMode;
+                this.requiresConnection = requiresConnection;
+            }
+
+            public abstract void Execute(NeewerLedDevice device);
+            public override string ToString()
+            {
+                return GetType().Name;
+            }
+        }
+
+        public class ConnectCommand : NeewerDeviceCommand
+        {
+            public ConnectCommand() : base(false, false, false)
+            {
+            }
+        
+            public override void Execute(NeewerLedDevice device)
+            { 
+                //device.QueryGATT(true);
+            }
+        }
+        
+        public class DisconnectCommand : NeewerDeviceCommand
+        {
+            public DisconnectCommand() : base(false, false, false)
+            {
+            }
+        
+            public override void Execute(NeewerLedDevice device)
+            {
+                device.stayActive = false;
+
+                if (device.bluetoothDevice != null)
+                {
+                    device.bluetoothDevice.Gatt.Disconnect();
+                }
+            }
+        }
+        
+        public class SetPowerCommand : NeewerDeviceCommand
+        {
+            public readonly bool _power;
+            
+            public SetPowerCommand(bool power) : base(true, false, true)
+            {
+                _power = power;
+            }
+        
+            public override void Execute(NeewerLedDevice device)
+            {
+                device.SendToDevice(GetCommandBytes(BluetoothCommandByte.PowerSend, (byte)(_power ? 1 : 2)));
+            }
+        }
+        
+        public class SetWhiteCommand : NeewerDeviceCommand
+        {
+            private readonly float _brightness;
+            private readonly int _temperature;
+
+            public SetWhiteCommand(float brightness, int temperature) : base(false, true, true)
+            {
+                _brightness = brightness;
+                _temperature = temperature;
+            }
+        
+            public override void Execute(NeewerLedDevice device)
+            {
+                device.SendToDevice(GetCommandBytes(BluetoothCommandByte.CCTSend, (byte)(_brightness * 100), (byte)(_temperature / 100)));
+            }
+        }
+        
+        public class SetColorCommand : NeewerDeviceCommand
+        {
+            private readonly float _hue;
+            private readonly float _saturation;
+            private readonly float _brightness;
+            
+            public SetColorCommand(float hue, float saturation, float brightness) : base(false, true, true)
+            {
+                _hue = hue;
+                _saturation = saturation;
+                _brightness = brightness;
+            }
+        
+            public override void Execute(NeewerLedDevice device)
+            {
+                var hueInt = (int)(_hue * 360f) % 360;
+                device.SendToDevice(GetCommandBytes(BluetoothCommandByte.HSVSend, (byte)(hueInt & 255), (byte)((hueInt & 65280) >> 8), (byte)(_saturation * 100), (byte)(_brightness * 100)));
+            }
+        }
+        
+        public class SetSceneCommand : NeewerDeviceCommand
+        {
+            private readonly float _brightness;
+            private readonly NeewerSceneId _sceneId;
+
+            public SetSceneCommand(float brightness, NeewerSceneId temperature) : base(false, true, true)
+            {
+                _brightness = brightness;
+                _sceneId = temperature;
+            }
+        
+            public override void Execute(NeewerLedDevice device)
+            {
+                device.SendToDevice(GetCommandBytes(BluetoothCommandByte.SceneSend, (byte)(_brightness * 100), (byte)(_sceneId)));
+            }
+        }
+        
+        public enum BluetoothCommandByte : byte
         {
             ChannellRecieve = 1,
             PowerRecieve = 2,
@@ -114,13 +282,15 @@ namespace MothManager.NeewerLEDControl
             CCTSend = 135,
             SceneSend = 136
         }
-        
+
         private const byte CommandPrefix = 120;
         private static readonly BluetoothUuid LightControlServiceId = new Guid("69400001-b5a3-f393-e0a9-e50e24dcca99");
         private static readonly BluetoothUuid SendCharacteristicId = new Guid("69400002-b5a3-f393-e0a9-e50e24dcca99");
-        private static readonly BluetoothUuid ReceiveCharacteristicId = new Guid("69400003-b5a3-f393-e0a9-e50e24dcca99");
-       
-        
+
+        private static readonly BluetoothUuid
+            ReceiveCharacteristicId = new Guid("69400003-b5a3-f393-e0a9-e50e24dcca99");
+
+
         public enum DeviceStatus
         {
             Uninitialized,
@@ -129,14 +299,14 @@ namespace MothManager.NeewerLEDControl
             QueryingSend,
             GattInitialized,
             Ready,
-            
+
             MissingService,
             MissingReceive,
             MissingSend,
-            
+
             TryReconnect,
         }
-        
+
         public BluetoothDevice bluetoothDevice;
         private GattService? lightControlService;
         private GattCharacteristic? receiveCharacteristic;
@@ -169,33 +339,103 @@ namespace MothManager.NeewerLEDControl
 
         public override void Connect(int attemptsAllowed)
         {
+            //commandQueue.Add(new ConnectCommand());
+            
             Logger.WriteLine($"<color:cyan>Connect [{Id}] {Name}</color>");
 
             monitorThread = new Thread(MonitorDevice);
-            commandQueue.Add(new NeewerDeviceCommand(()=> QueryGATT(true), false));
+            commandQueue.Add(new ConnectCommand());//new NeewerDeviceCommand(()=> QueryGATT(true), false));
             monitorThread.Start();
+
+            // Logger.WriteLine($"<color:cyan>Connect [{Id}] {Name}</color>");
+            //
+            // monitorThread = new Thread(MonitorDevice);
+            // commandQueue.Add(new NeewerDeviceCommand(()=> QueryGATT(true), false));
+            // monitorThread.Start();
         }
-        
+
         private async void MonitorDevice()
         {
             Logger.WriteLine($"<color:yellow>MonitorDevice Start [{Id}] {Name}</color>");
-            
+
             stayActive = true;
+            //var commands = new List<NeewerDeviceCommand>(128);
             while (stayActive)
             {
-                var command = commandQueue.Take();
-
-                if (command.requiresConnection && !Connected)
+                if (Status == DeviceStatus.Uninitialized)
                 {
-                    Logger.WriteLine(LogEntryType.Error, $"{Name} = {Id}", "Unable to submit command as device is not connected." );
-                    
-                    //TODD: Attempt reconnect
-                    
-                    continue;
+                    Task.Run(()=>QueryGATT(true)).Wait();
                 }
                 
-                command.command.Invoke();
+                NeewerDeviceCommand lastPowerCommand = null;
+                NeewerDeviceCommand lastModeCommand = null;
                 
+                var command = commandQueue.Take();
+
+                do
+                {
+                    Logger.WriteLine($"Execute {command}");
+                    
+                    if (command.affectsPower)
+                    {
+                        lastPowerCommand = command;
+                        continue;
+                    }
+
+                    if (command.affectsMode)
+                    {
+                        lastModeCommand = command;
+                        continue;
+                    }
+
+                    if (command.requiresConnection && !Connected)
+                    {
+                        Logger.WriteLine(LogEntryType.Error, $"{Name} = {Id}",
+                            "Unable to submit command as device is not connected.");
+
+                        //TODD: Attempt reconnect
+
+                        continue;
+                    }
+
+                    command.Execute(this);
+                } while (commandQueue.TryTake(out command));
+
+                if (!Connected)
+                {
+                    continue;
+                }
+
+                if (lastPowerCommand != null && lastPowerCommand is SetPowerCommand powerCommand)
+                {
+                    if (powerCommand._power)
+                    {
+                        powerCommand.Execute(this);
+                        lastModeCommand?.Execute(this);
+                    }
+                    else
+                    {
+                        lastModeCommand?.Execute(this);
+                        powerCommand.Execute(this);
+                    }
+                }
+                else
+                {
+                    lastModeCommand?.Execute(this);
+                }
+                
+                // if (command.requiresConnection && !Connected)
+                // {
+                //     Logger.WriteLine(LogEntryType.Error, $"{Name} = {Id}",
+                //         "Unable to submit command as device is not connected.");
+                //
+                //     //TODD: Attempt reconnect
+                //
+                //     continue;
+                // }
+                //
+                // command.command.Invoke();
+
                 /*
                 if (Status != DeviceStatus.Ready)
                 {
@@ -235,31 +475,38 @@ namespace MothManager.NeewerLEDControl
                 }
                 */
             }
-            
+
             Logger.WriteLine($"<color:yellow>MonitorDevice End [{Id}] {Name}</color>");
         }
 
         public void SendToDevice(byte[] message)
         {
-            Logger.WriteLine($"<color:white:darkgreen>Sending {(CommandType)message[1]} to device: {BitConverter.ToString(message)}</color>");
-                        
-                        
+            Logger.WriteLine(
+                $"<color:white:darkgreen>Sending {(BluetoothCommandByte)message[1]} to device: {BitConverter.ToString(message)}</color>");
+
+
             //byte[] bytesCommand = Encoding.ASCII.GetBytes(message + "\r\n");
             sendCharacteristic.WriteValueWithResponseAsync(message).Wait();
         }
-        
+
         public async void QueryGATT(bool loadSettingsOnFound)
         {
+            Logger.WriteLine($"{Name} = {Id}",
+                $"<color:Black:white>Get Bluetooth Device GATT - Thread ID{Thread.CurrentThread.ManagedThreadId}</color>");
+            
             Status = DeviceStatus.QueryingService;
             bluetoothDevice = null;
+            
             while (bluetoothDevice == null)
             {
-                var result = Task.Run(() => BluetoothDevice.FromIdAsync(Id));
-                bluetoothDevice = result.Result;
+                // var result = Task.Run(() => BluetoothDevice.FromIdAsync(Id));
+                // bluetoothDevice = result.Result;
+                bluetoothDevice = await BluetoothDevice.FromIdAsync(Id);
             }
 
             RemoteGattServer rgs = bluetoothDevice.Gatt;
-            Logger.WriteLine($"{Name} = {Id}",$"<color:Black:white>Querying GATT - Thread ID{Thread.CurrentThread.ManagedThreadId}</color>");
+            Logger.WriteLine($"{Name} = {Id}",
+                $"<color:Black:white>Querying GATT - Thread ID{Thread.CurrentThread.ManagedThreadId}</color>");
 
             try
             {
@@ -267,61 +514,75 @@ namespace MothManager.NeewerLEDControl
 
                 while (attemptsRemaining > 0 && lightControlService == null)
                 {
-                    Logger.WriteLine($"Query Service (Attempts remaining: {attemptsRemaining} - Thread ID{Thread.CurrentThread.ManagedThreadId}", $"{Name} = {Id}");
-                    
+                    Logger.WriteLine(
+                        $"Query Service (Attempts remaining: {attemptsRemaining} - Thread ID{Thread.CurrentThread.ManagedThreadId}",
+                        $"{Name} = {Id}");
+
                     lightControlService = await rgs.GetPrimaryServiceAsync(LightControlServiceId);
                     attemptsRemaining--;
                 }
-                
+
                 if (lightControlService == null)
                 {
                     Logger.WriteLine(LogEntryType.Error, $"FAILED TO GET LIGHT CONTROL SERVICE!", $"{Name} = {Id}");
-                    
+
                     Status = DeviceStatus.MissingService;
                     return;
                 }
-                
-                Logger.WriteLine($"<Color:green>Service Found!</Color> - Thread ID{Thread.CurrentThread.ManagedThreadId}", $"{Name} = {Id}");
+
+                Logger.WriteLine(
+                    $"<Color:green>Service Found!</Color> - Thread ID{Thread.CurrentThread.ManagedThreadId}",
+                    $"{Name} = {Id}");
 
                 Status = DeviceStatus.QueryingReceive;
                 attemptsRemaining = 4;
-                
+
                 while (attemptsRemaining > 0 && receiveCharacteristic == null)
                 {
-                    Logger.WriteLine($"Query Receive (Attempts remaining: {attemptsRemaining} - Thread ID{Thread.CurrentThread.ManagedThreadId}", $"{Name} = {Id}");
-                    
+                    Logger.WriteLine(
+                        $"Query Receive (Attempts remaining: {attemptsRemaining} - Thread ID{Thread.CurrentThread.ManagedThreadId}",
+                        $"{Name} = {Id}");
+
                     receiveCharacteristic = await lightControlService.GetCharacteristicAsync(ReceiveCharacteristicId);
                     attemptsRemaining--;
                 }
-                
-                
+
+
                 if (receiveCharacteristic == null)
                 {
-                    Logger.WriteLine(LogEntryType.Error, "FAILED TO GET LIGHT DATA RECEIVE CHARACTERISTIC\n", $"{Name} = {Id}");
+                    Logger.WriteLine(LogEntryType.Error, "FAILED TO GET LIGHT DATA RECEIVE CHARACTERISTIC\n",
+                        $"{Name} = {Id}");
                     Status = DeviceStatus.MissingReceive;
                     return;
                 }
-                
-                Logger.WriteLine($"<Color:green>Receive Characteristic Found!</Color> - Thread ID{Thread.CurrentThread.ManagedThreadId}", $"{Name} = {Id}");
-                
+
+                Logger.WriteLine(
+                    $"<Color:green>Receive Characteristic Found!</Color> - Thread ID{Thread.CurrentThread.ManagedThreadId}",
+                    $"{Name} = {Id}");
+
                 Status = DeviceStatus.QueryingSend;
                 attemptsRemaining = 4;
-                
+
                 while (attemptsRemaining > 0 && sendCharacteristic == null)
                 {
-                    Logger.WriteLine($"Query Send (Attempts remaining: {attemptsRemaining} - Thread ID{Thread.CurrentThread.ManagedThreadId}", $"{Name} = {Id}");
+                    Logger.WriteLine(
+                        $"Query Send (Attempts remaining: {attemptsRemaining} - Thread ID{Thread.CurrentThread.ManagedThreadId}",
+                        $"{Name} = {Id}");
                     sendCharacteristic = await lightControlService.GetCharacteristicAsync(SendCharacteristicId);
                     attemptsRemaining--;
                 }
-                
+
                 if (sendCharacteristic == null)
                 {
-                    Logger.WriteLine(LogEntryType.Error, "FAILED TO GET LIGHT DATA SEND CHARACTERISTIC\n", $"{Name} = {Id}");
+                    Logger.WriteLine(LogEntryType.Error, "FAILED TO GET LIGHT DATA SEND CHARACTERISTIC\n",
+                        $"{Name} = {Id}");
                     Status = DeviceStatus.MissingSend;
                     return;
                 }
 
-                Logger.WriteLine($"<Color:green>Send Characteristic Found!</Color> - Thread ID{Thread.CurrentThread.ManagedThreadId}", $"{Name} = {Id}");
+                Logger.WriteLine(
+                    $"<Color:green>Send Characteristic Found!</Color> - Thread ID{Thread.CurrentThread.ManagedThreadId}",
+                    $"{Name} = {Id}");
 
                 Status = DeviceStatus.GattInitialized;
 
@@ -339,22 +600,18 @@ namespace MothManager.NeewerLEDControl
 
         public override void Disconnect()
         {
-            if (Connected)
-            {
-                commandQueue.Add(new NeewerDeviceCommand(() => stayActive = false, false));
-            }
-            stayActive = false;
-            
-            if (bluetoothDevice != null)
-            {
-                bluetoothDevice.Gatt.Disconnect();
-            }
+            commandQueue.Add(new DisconnectCommand());
         }
+        //
+        // private void DisconnectCommand()
+        // {
+        //     
+        // }
 
         protected override void SetCurrentState(NeewerLEDDeviceState value)
         {
             State.CopyFrom(value);
-            
+
             SetPower(value.Power);
             SendModeToDevice();
         }
@@ -362,8 +619,10 @@ namespace MothManager.NeewerLEDControl
         protected override void SetPower(bool value)
         {
             State.Power = value;
-            commandQueue.Add(new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(CommandType.PowerSend, (byte)(value ? 1 : 2)))));
+            // commandQueue.Add(new NeewerDeviceCommand(() =>
+            //     SendToDevice(GetCommandBytes(BluetoothCommandByte.PowerSend, (byte)(value ? 1 : 2)))));
             //sendQueue.Enqueue(GetCommandBytes(CommandType.PowerSend, (byte)(value ? 1 : 2)));
+            commandQueue.Add(new SetPowerCommand(value));
         }
 
         protected override void SetMode(IDeviceState.DeviceMode value)
@@ -377,11 +636,6 @@ namespace MothManager.NeewerLEDControl
             State.Temperature = value;
 
             //TODO: Handle CCT Only lights (Separate commands for temperature and brightness)
-            
-            if (State.Mode == IDeviceState.DeviceMode.White)
-            {
-                SendWhiteToDevice();        
-            }
         }
 
         protected override void SetHue(float value)
@@ -407,9 +661,9 @@ namespace MothManager.NeewerLEDControl
         protected override void SetBrightness(float value)
         {
             State.Brightness = value;
-            
+
             //TODO: Handle CCT Only lights (Separate commands for temperature and brightness)
-            
+
             SendModeToDevice();
         }
 
@@ -461,29 +715,36 @@ namespace MothManager.NeewerLEDControl
         private void SendWhiteToDevice()
         {
             //TODO: Handle CCT only devices.
-            commandQueue.Add(new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(CommandType.CCTSend, (byte)(State.Brightness * 100), (byte)(State.Temperature / 100)))));
+            commandQueue.Add(new SetWhiteCommand(State.Brightness, State.Temperature));//new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(BluetoothCommandByte.CCTSend,
+                //(byte)(State.Brightness * 100), (byte)(State.Temperature / 100)))));
             //sendQueue.Enqueue(GetCommandBytes(CommandType.CCTSend, (byte)(State.Brightness * 100), (byte)(State.Temperature / 100)));
         }
-        
+
         private void SendColorToDevice()
         {
-            var hueInt = (int)(State.Hue * 360f) % 360;
-            commandQueue.Add(new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(CommandType.HSVSend, (byte)(hueInt & 255), (byte)((hueInt & 65280) >> 8), (byte)(State.Saturation * 100), (byte)(State.Brightness * 100)))));
+            commandQueue.Add(new SetColorCommand(State.Hue, State.Saturation, State.Brightness));
+            
+            // var hueInt = (int)(State.Hue * 360f) % 360;
+            // commandQueue.Add(new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(BluetoothCommandByte.HSVSend,
+            //     (byte)(hueInt & 255), (byte)((hueInt & 65280) >> 8), (byte)(State.Saturation * 100),
+            //     (byte)(State.Brightness * 100)))));
             //sendQueue.Enqueue(GetCommandBytes(CommandType.HSVSend, (byte)(hueInt & 255), (byte)((hueInt & 65280) >> 8), (byte)(State.Saturation * 100), (byte)(State.Brightness * 100)));
         }
-        
+
         private void SendCustomSceneToDevice()
         {
-            commandQueue.Add(new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(CommandType.SceneSend, (byte)State.CustomSceneId, (byte)(State.Brightness * 100)))));
+            commandQueue.Add(new SetSceneCommand(State.Brightness, State.CustomSceneId));
+            // commandQueue.Add(new NeewerDeviceCommand(() => SendToDevice(GetCommandBytes(BluetoothCommandByte.SceneSend,
+            //     (byte)(State.Brightness * 100), (byte)State.CustomSceneId))));
             //sendQueue.Enqueue(GetCommandBytes(CommandType.SceneSend, (byte)State.CustomSceneId, (byte)(State.Brightness * 100)));
         }
 
-        public byte[] GetCommandBytes(CommandType commandType, params byte[] values)
+        private static byte[] GetCommandBytes(BluetoothCommandByte bluetoothCommandByte, params byte[] values)
         {
             var retVal = new byte[values.Length + 6];
 
             retVal[0] = CommandPrefix;
-            retVal[1] = (byte)commandType;
+            retVal[1] = (byte)bluetoothCommandByte;
             retVal[2] = (byte)values.Length;
 
             var checkSum = retVal[0] + retVal[1] + retVal[2];
@@ -496,7 +757,8 @@ namespace MothManager.NeewerLEDControl
 
             retVal[^3] = unchecked((byte)checkSum);
 
-            Logger.WriteLine($"<color:black,white>{commandType}</color> - {BitConverter.ToString(retVal)}", $"{Name} ({Id})");
+            Logger.WriteLine($"<color:black,white>{bluetoothCommandByte}</color> - {BitConverter.ToString(retVal)}");
+                //,$"{Name} ({Id})");
 
 
             return retVal;

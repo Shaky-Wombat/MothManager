@@ -166,6 +166,7 @@ public partial class Form1 : Form
             foreach (var device in _neewerLedDeviceManager.GetKnownDevices())
             {
                 device.Connect(_deviceUserSettings.ConnectAttemptsAllowed);
+                
             }
         }
     }
